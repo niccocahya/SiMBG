@@ -1,0 +1,48 @@
+@layouts.app({ title: 'Perbandingan menu', sidebar: false })
+  @page({ title: 'Perbandingan menu', description: `${evaluations.length} evaluasi dibandingkan berdampingan.` })
+    @slot('actions')
+      <a class="btn btn--secondary btn--sm" href="{{ urlFor('history.index') }}">Kembali ke riwayat</a>
+    @end
+    <div class="vstack-lg">
+      <div class="panel">
+        @!scoreBars({ items: evaluations.map((e) => ({ label: e.displayName, score: e.score, category: e.category })) })
+      </div>
+      <div class="table-wrap">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Menu</th>
+              <th class="num">Kalori</th>
+              <th class="num">Protein</th>
+              <th class="num">Lemak</th>
+              <th class="num">Serat</th>
+              <th class="num">Kecukupan</th>
+              <th class="num">Skor</th>
+              <th>Kategori</th>
+              <th>Alasan utama</th>
+            </tr>
+          </thead>
+          <tbody>
+            @each(e in evaluations)
+              <tr>
+                <td>
+                  <a class="il" href="{{ urlFor('evaluations.show', { uuid: e.uuid }) }}">{{ e.displayName }}</a>
+                  <div class="small muted">{{ e.groupLabel }}</div>
+                </td>
+                @each(n in nutrients)
+                  <td class="num">{{ fmt(e.values[n.key], 1) }} {{ n.unit }}<div class="small muted">{{ fmt(e.result.percent[n.key], 0) }}%</div></td>
+                @end
+                <td class="num">{{ fmt(e.scoreAdequacy, 1) }}</td>
+                <td class="num"><strong>{{ fmt(e.score, 1) }}</strong></td>
+                <td>
+                  @!categoryBadge({ category: e.category, label: e.result.categoryLabel, size: 'sm' })
+                </td>
+                <td class="small">{{ e.result.reasons.filter((r) => r.severity !== 'catatan').map((r) => r.text).join('; ') }}</td>
+              </tr>
+            @end
+          </tbody>
+        </table>
+      </div>
+    </div>
+  @end
+@end

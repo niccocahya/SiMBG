@@ -1,0 +1,17 @@
+{{-- Grafik batang skor sederhana; items = [{ label, score, category }] --}}
+@let(items = $props.get('items'))
+<div role="img" aria-label="Grafik batang skor: {{ items.map((i) => `${i.label} ${fmt(i.score, 1)}`).join(', ') }}">
+  <div class="bars">
+    @each(item in items)
+      <div class="bars__col" data-cat="{{ item.category }}">
+        <span class="small num"><strong>{{ fmt(item.score, 0) }}</strong></span>
+        <div class="bars__bar" style="height: {{ Math.max(2, item.score) }}%"></div>
+      </div>
+    @end
+  </div>
+  <div class="bars__labels">
+    @each(item in items)
+      <div title="{{ item.label }}">{{ item.label }}</div>
+    @end
+  </div>
+</div>

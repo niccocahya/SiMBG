@@ -1,0 +1,12 @@
+@let(paginator = $props.get('paginator'))
+@if(paginator.hasPages)
+  <nav class="pagination" aria-label="Halaman">
+    @each(item in paginator.getUrlsForRange(Math.max(1, paginator.currentPage - 3), Math.min(paginator.lastPage, paginator.currentPage + 3)))
+      @if(item.isActive)
+        <span aria-current="page">{{ item.page }}</span>
+      @else
+        <a href="{{ item.url }}">{{ item.page }}</a>
+      @end
+    @end
+  </nav>
+@end

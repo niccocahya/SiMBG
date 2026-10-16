@@ -1,0 +1,3 @@
+/* Entri CSS: gaya dasar dulu, lalu tema pemerintahan agar tokennya menimpa */
+@import './app.css';
+@import './theme.css';

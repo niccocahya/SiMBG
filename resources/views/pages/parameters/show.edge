@@ -1,0 +1,315 @@
+@let(readonly = set.isLocked || parametersReadonly)
+@let(dis = readonly ? 'disabled' : '')
+@let(issuePaths = issues.map((i) => i.path))
+@let(v = config.variables)
+
+@layouts.app({ title: set.name, sidebar: false })
+  @page({
+    title: set.name,
+    description: set.isLocked ? 'Set default sesuai PRD. Terkunci — duplikat untuk mengubahnya.' : 'Ubah angka lalu simpan. Grafik pratinjau ikut berubah saat mengetik.',
+  })
+    @slot('actions')
+      <a class="btn btn--secondary btn--sm" href="{{ urlFor('parameters.index') }}">Semua set</a>
+      <a class="btn btn--secondary btn--sm" href="{{ urlFor('parameters.export', { id: set.id }) }}">Ekspor JSON</a>
+      @if(!parametersReadonly)
+        <form method="POST" action="{{ urlFor('parameters.store') }}" class="inline-form">
+          {{ csrfField() }}
+          <input type="hidden" name="from" value="{{ set.id }}" />
+          <button class="btn btn--secondary btn--sm" type="submit">Duplikat</button>
+        </form>
+        @if(!set.isActive)
+          <form method="POST" action="{{ urlFor('parameters.activate', { id: set.id }) }}" class="inline-form">
+            {{ csrfField() }}
+            <button class="btn btn--primary btn--sm" type="submit">Pakai set ini</button>
+          </form>
+        @end
+      @end
+    @end
+
+    <script type="application/json" id="param-data">{{{ json({ variables: config.variables }) }}}</script>
+
+    <div class="vstack-lg">
+      @if(set.isActive)
+        <div class="note">
+          @svg('lucide:circle-check', { width: 16, height: 16 })
+          <span>Set ini sedang dipakai untuk evaluasi baru.</span>
+        </div>
+      @end
+
+      @if(agreement)
+        <div class="note">
+          @svg('lucide:scale', { width: 16, height: 16 })
+          <span>
+            Kesesuaian dengan penilaian pakar ({{ agreement.total }} menu uji): <strong>{{ fmt(agreement.percent, 1) }}%</strong>
+            @if(activeAgreement)
+              · set aktif "{{ active.name }}": {{ fmt(activeAgreement.percent, 1) }}%
+            @end
+            · <a class="il" href="{{ urlFor('expert.index', {}, { qs: { set: set.id } }) }}">lihat rincian</a>
+          </span>
+        </div>
+      @end
+
+      @if(issues.length)
+        <div class="note note--warn" role="alert">
+          @svg('lucide:triangle-alert', { width: 16, height: 16 })
+          <div>
+            <strong>Parameter belum disimpan:</strong>
+            <ul style="margin: 6px 0 0 18px">
+              @each(issue in issues)
+                <li>{{ issue.message }}</li>
+              @end
+            </ul>
+          </div>
+        </div>
+      @end
+
+      <form method="POST" action="{{ urlFor('parameters.update', { id: set.id }, { qs: { _method: 'PUT' } }) }}" class="vstack-lg">
+        {{ csrfField() }}
+
+        <section class="panel vstack">
+          <h2 class="h2">Identitas set</h2>
+          <div class="grid-2">
+            <div class="field">
+              <label class="field__label" for="name">Nama</label>
+              <input class="field__input" id="name" name="name" value="{{ old('name') ?? set.name }}" {{ dis }} />
+            </div>
+            <div class="field">
+              <label class="field__label" for="description">Keterangan</label>
+              <input class="field__input" id="description" name="description" value="{{ old('description') ?? (set.description ?? '') }}" {{ dis }} />
+            </div>
+          </div>
+        </section>
+
+        <section class="panel vstack">
+          <div>
+            <h2 class="h2">Target gizi per porsi (F-10)</h2>
+            <p class="small muted">Target porsi = AKG harian × persen porsi. AKG perlu diverifikasi ke Permenkes tentang AKG yang berlaku.</p>
+          </div>
+          <div class="field" style="max-width: 260px">
+            <label class="field__label" for="portion">Persen AKG harian per porsi</label>
+            <div class="input-unit">
+              <input class="field__input num" id="portion" name="config[portionPercent]" value="{{ config.portionPercent }}" inputmode="decimal" {{ dis }} />
+              <span class="input-unit__suffix">%</span>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table class="table table--compact">
+              <thead>
+                <tr>
+                  <th>Kode</th>
+                  <th>Kelompok sasaran</th>
+                  <th>Jenis</th>
+                  <th class="num">Energi (kkal)</th>
+                  <th class="num">Protein (g)</th>
+                  <th class="num">Lemak (g)</th>
+                  <th class="num">Serat (g)</th>
+                </tr>
+              </thead>
+              <tbody>
+                @each((g, gi) in config.targetGroups)
+                  @each(sex in ['male', 'female'])
+                    <tr>
+                      <td>
+                        @if(sex === 'male')
+                          <input class="field__input field__input--sm" style="width: 110px" name="config[targetGroups][{{ gi }}][code]" value="{{ g.code }}" {{ dis }} aria-label="Kode kelompok" />
+                        @end
+                      </td>
+                      <td>
+                        @if(sex === 'male')
+                          <input class="field__input field__input--sm" style="width: 220px" name="config[targetGroups][{{ gi }}][label]" value="{{ g.label }}" {{ dis }} aria-label="Nama kelompok" />
+                        @end
+                      </td>
+                      <td class="small">{{ sex === 'male' ? 'Laki-laki' : 'Perempuan' }}</td>
+                      @each(n in nutrients)
+                        <td class="num">
+                          <input class="field__input field__input--sm num" name="config[targetGroups][{{ gi }}][{{ sex }}][{{ n.key }}]" value="{{ g[sex][n.key] }}" inputmode="decimal" {{ dis }} aria-label="{{ n.label }} {{ sex === 'male' ? 'laki-laki' : 'perempuan' }} {{ g.label }}" />
+                        </td>
+                      @end
+                    </tr>
+                  @end
+                @end
+                @if(!readonly)
+                  @let(ni = config.targetGroups.length)
+                  @each(sex in ['male', 'female'])
+                    <tr>
+                      <td>
+                        @if(sex === 'male')
+                          <input class="field__input field__input--sm" style="width: 110px" name="config[targetGroups][{{ ni }}][code]" placeholder="kode_baru" aria-label="Kode kelompok baru" />
+                        @end
+                      </td>
+                      <td>
+                        @if(sex === 'male')
+                          <input class="field__input field__input--sm" style="width: 220px" name="config[targetGroups][{{ ni }}][label]" placeholder="Tambah kelompok (opsional)" aria-label="Nama kelompok baru" />
+                        @end
+                      </td>
+                      <td class="small">{{ sex === 'male' ? 'Laki-laki' : 'Perempuan' }}</td>
+                      @each(n in nutrients)
+                        <td class="num">
+                          <input class="field__input field__input--sm num" name="config[targetGroups][{{ ni }}][{{ sex }}][{{ n.key }}]" inputmode="decimal" aria-label="{{ n.label }} kelompok baru" />
+                        </td>
+                      @end
+                    </tr>
+                  @end
+                @end
+              </tbody>
+            </table>
+          </div>
+          @if(!readonly)
+            <p class="small muted">Untuk menghapus kelompok, kosongkan kode dan namanya lalu simpan.</p>
+          @end
+        </section>
+
+        <section class="vstack">
+          <div>
+            <h2 class="h2">Himpunan fuzzy</h2>
+            <p class="small muted">Trapesium [a, b, c, d]. a = b hanya boleh di batas kiri domain dan c = d di batas kanan. Himpunan harus menutup seluruh rentang agar Σα tidak pernah nol.</p>
+          </div>
+          @each(key in ['kalori', 'protein', 'kecukupan', 'lemak', 'serat'])
+            @let(variable = v[key])
+            <div class="panel" x-data="variablePreview('{{ key }}')">
+              <div class="grid-2" style="align-items: start">
+                <div class="vstack-sm">
+                  <div class="h3">{{ variable.label }} <span class="muted small">({{ variable.unit }}, domain {{ variable.domain[0] }}–{{ variable.domain[1] }}){{ key === 'kecukupan' ? ' · tahap 2' : '' }}</span></div>
+                  <div class="table-wrap">
+                    <table class="table table--compact">
+                      <thead><tr><th>Himpunan</th><th>a</th><th>b</th><th>c</th><th>d</th></tr></thead>
+                      <tbody>
+                        @each((s, si) in variable.sets)
+                          <tr>
+                            <td>
+                              <strong>{{ s.label }}</strong>
+                              <input type="hidden" name="config[variables][{{ key }}][sets][{{ si }}][key]" value="{{ s.key }}" />
+                            </td>
+                            @each(pi in [0, 1, 2, 3])
+                              <td>
+                                <input class="field__input field__input--sm num" style="width: 64px" data-param="{{ si }}-{{ pi }}" name="config[variables][{{ key }}][sets][{{ si }}][params][{{ pi }}]" value="{{ s.params[pi] }}" inputmode="decimal" {{ dis }} aria-label="{{ variable.label }} {{ s.label }} titik {{ 'abcd'[pi] }}" aria-invalid="{{ issuePaths.includes(`variables.${key}.${s.key}`) ? 'true' : 'false' }}" />
+                              </td>
+                            @end
+                          </tr>
+                          <tr>
+                            <td colspan="5">
+                              <input class="field__input field__input--sm" style="width: 100%" name="config[variables][{{ key }}][sets][{{ si }}][note]" value="{{ s.note ?? '' }}" placeholder="Alasan / rujukan titik {{ s.label }}" {{ dis }} aria-label="Catatan {{ variable.label }} {{ s.label }}" />
+                            </td>
+                          </tr>
+                        @end
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+                <figure class="chart-card">
+                  <div x-html="svg">{{{ membershipSvg(variable, null) }}}</div>
+                </figure>
+              </div>
+            </div>
+          @end
+        </section>
+
+        <section class="panel vstack">
+          <div>
+            <h2 class="h2">Aturan tahap 1 (9 aturan): kalori × protein → skor kecukupan</h2>
+          </div>
+          <div style="overflow-x: auto">
+            <table class="matrix">
+              <thead>
+                <tr>
+                  <th>Kalori \ Protein</th>
+                  @each(ps in v.protein.sets)
+                    <th>{{ ps.label }}</th>
+                  @end
+                </tr>
+              </thead>
+              <tbody>
+                @each(ks in v.kalori.sets)
+                  <tr>
+                    <th scope="row">{{ ks.label }}</th>
+                    @each(ps in v.protein.sets)
+                      @let(ri = config.stage1Rules.findIndex((r) => r.when.kalori === ks.key && r.when.protein === ps.key))
+                      @let(rule = config.stage1Rules[ri])
+                      <td>
+                        <input type="hidden" name="config[stage1Rules][{{ ri }}][id]" value="{{ rule.id }}" />
+                        <input class="field__input field__input--sm num" style="width: 64px" name="config[stage1Rules][{{ ri }}][output]" value="{{ rule.output }}" inputmode="decimal" {{ dis }} aria-label="{{ rule.id }}: kalori {{ ks.label }}, protein {{ ps.label }}" />
+                      </td>
+                    @end
+                  </tr>
+                @end
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="panel vstack">
+          <div>
+            <h2 class="h2">Aturan tahap 2 (27 aturan): lemak × kecukupan × serat → skor akhir</h2>
+            <p class="small muted">Konstanta keluaran PRD: Tidak Layak 20, Perlu Perbaikan 50, Layak 75, Sangat Layak 95.</p>
+          </div>
+          <div class="table-wrap">
+            <table class="table table--compact">
+              <thead>
+                <tr>
+                  <th>Lemak</th>
+                  <th>Kecukupan</th>
+                  @each(ss in v.serat.sets)
+                    <th>Serat {{ ss.label }}</th>
+                  @end
+                </tr>
+              </thead>
+              <tbody>
+                @each(ls in v.lemak.sets)
+                  @each(cs in v.kecukupan.sets)
+                    <tr>
+                      <td>{{ ls.label }}</td>
+                      <td>{{ cs.label }}</td>
+                      @each(ss in v.serat.sets)
+                        @let(ri = config.stage2Rules.findIndex((r) => r.when.lemak === ls.key && r.when.kecukupan === cs.key && r.when.serat === ss.key))
+                        @let(rule = config.stage2Rules[ri])
+                        <td>
+                          <input type="hidden" name="config[stage2Rules][{{ ri }}][id]" value="{{ rule.id }}" />
+                          <input class="field__input field__input--sm num" style="width: 64px" name="config[stage2Rules][{{ ri }}][output]" value="{{ rule.output }}" inputmode="decimal" {{ dis }} aria-label="{{ rule.id }}: lemak {{ ls.label }}, kecukupan {{ cs.label }}, serat {{ ss.label }}" />
+                          <span class="small muted">{{ rule.id }}</span>
+                        </td>
+                      @end
+                    </tr>
+                  @end
+                @end
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="panel vstack">
+          <h2 class="h2">Batas kategori</h2>
+          <div class="grid-4">
+            @each((c, ci) in config.categories)
+              <div class="field">
+                <label class="field__label" for="cat-{{ c.key }}">
+                  @!categoryBadge({ category: c.key, label: c.label, size: 'sm' })
+                </label>
+                <input type="hidden" name="config[categories][{{ ci }}][key]" value="{{ c.key }}" />
+                <div class="input-unit">
+                  <input class="field__input num" id="cat-{{ c.key }}" name="config[categories][{{ ci }}][min]" value="{{ c.min }}" inputmode="decimal" {{ ci === 0 || readonly ? 'disabled' : '' }} />
+                  <span class="input-unit__suffix">≥ skor</span>
+                </div>
+              </div>
+            @end
+          </div>
+        </section>
+
+        <section class="panel vstack">
+          <h2 class="h2">Rujukan</h2>
+          <textarea name="config[sources]" rows="4" aria-label="Rujukan, satu per baris" {{ dis }}>{{ (config.sources ?? []).join('\n') }}</textarea>
+          <p class="small muted">Satu rujukan per baris. Ditampilkan di halaman Tentang metode.</p>
+        </section>
+
+        @if(!readonly)
+          <div class="row">
+            <button class="btn btn--primary" type="submit">
+              @svg('lucide:save', { width: 15, height: 15 })
+              Simpan parameter
+            </button>
+            <span class="small muted">Evaluasi lama tidak berubah; masing-masing menyimpan salinan parameternya.</span>
+          </div>
+        @end
+      </form>
+    </div>
+  @end
+@end

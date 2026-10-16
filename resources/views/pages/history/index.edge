@@ -1,0 +1,112 @@
+@let(qs = request.qs())
+@layouts.app({ title: 'Riwayat evaluasi', sidebar: false })
+  @page({
+    title: 'Riwayat evaluasi',
+    description: 'Semua evaluasi tersimpan beserta jejak hitungnya. Riwayat terlihat oleh semua pengguna; hapus hanya bisa dari perangkat pembuat.',
+  })
+    @slot('actions')
+      <a class="btn btn--secondary btn--sm" href="{{ urlFor('history.csv', {}, { qs }) }}">
+        @svg('lucide:file-spreadsheet', { width: 14, height: 14 })
+        Ekspor CSV
+      </a>
+    @end
+
+    <div class="vstack">
+      <form method="GET" action="{{ urlFor('history.index') }}" class="panel row" style="padding: 16px">
+        <input class="field__input" name="q" value="{{ filters.q ?? '' }}" placeholder="Cari nama menu" style="flex: 1 1 200px" />
+        <select name="category" aria-label="Kategori">
+          <option value="">Semua kategori</option>
+          @each(c in categories)
+            <option value="{{ c.key }}" {{ filters.category === c.key ? 'selected' : '' }}>{{ c.label }}</option>
+          @end
+        </select>
+        <select name="group" aria-label="Kelompok sasaran">
+          <option value="">Semua kelompok</option>
+          @each(g in groups)
+            <option value="{{ g.code }}" {{ filters.group === g.code ? 'selected' : '' }}>{{ g.label }}</option>
+          @end
+        </select>
+        <select name="sort" aria-label="Urutan">
+          <option value="terbaru" {{ filters.sort === 'terbaru' || !filters.sort ? 'selected' : '' }}>Terbaru</option>
+          <option value="terlama" {{ filters.sort === 'terlama' ? 'selected' : '' }}>Terlama</option>
+          <option value="skor_tinggi" {{ filters.sort === 'skor_tinggi' ? 'selected' : '' }}>Skor tertinggi</option>
+          <option value="skor_rendah" {{ filters.sort === 'skor_rendah' ? 'selected' : '' }}>Skor terendah</option>
+        </select>
+        <label class="row small">
+          <input type="checkbox" name="mine" value="1" {{ filters.mine ? 'checked' : '' }} />
+          Dibuat di perangkat ini
+        </label>
+        <button class="btn btn--primary btn--sm" type="submit">Terapkan</button>
+        @if(filters.q || filters.category || filters.group || filters.mine)
+          <a class="btn btn--ghost btn--sm" href="{{ urlFor('history.index') }}">Reset</a>
+        @end
+      </form>
+
+      @if(page.total === 0)
+        <div class="empty">
+          <div class="empty__mark">
+            @svg('lucide:inbox', { width: 22, height: 22 })
+          </div>
+          <h1>Belum ada evaluasi</h1>
+          <p>Evaluasi yang dihitung akan tersimpan di sini.</p>
+          <a class="btn btn--primary" href="{{ urlFor('home') }}">Evaluasi menu</a>
+        </div>
+      @else
+        <form method="GET" action="{{ urlFor('history.compare') }}" x-data="{ picked: [] }" class="vstack">
+          <div class="row row--between">
+            <span class="small muted">{{ page.total }} evaluasi · centang 2–7 untuk dibandingkan</span>
+            <button type="submit" class="btn btn--secondary btn--sm" x-bind:disabled="picked.length < 2 || picked.length > 7">
+              @svg('lucide:columns-3', { width: 14, height: 14 })
+              <span x-text="'Bandingkan (' + picked.length + ')'">Bandingkan</span>
+            </button>
+          </div>
+          <div class="table-wrap">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th></th>
+                  <th>Menu</th>
+                  <th>Kelompok</th>
+                  <th class="num">Kalori</th>
+                  <th class="num">Protein</th>
+                  <th class="num">Lemak</th>
+                  <th class="num">Serat</th>
+                  <th class="num">Skor</th>
+                  <th>Kategori</th>
+                  <th>Waktu</th>
+                </tr>
+              </thead>
+              <tbody>
+                @each(e in page.all())
+                  <tr>
+                    <td><input type="checkbox" name="ids" value="{{ e.uuid }}" x-model="picked" aria-label="Pilih {{ e.displayName }}" /></td>
+                    <td>
+                      <a class="il" href="{{ urlFor('evaluations.show', { uuid: e.uuid }) }}">{{ e.displayName }}</a>
+                      @if(e.source !== 'manual')
+                        <span class="chip">{{ e.source === 'bahan' ? 'dari bahan' : e.source === 'simulasi' ? 'simulasi' : 'hitung ulang' }}</span>
+                      @end
+                      @if(e.deviceId === deviceId)
+                        <span class="chip">perangkat ini</span>
+                      @end
+                    </td>
+                    <td class="small">{{ e.groupLabel }}</td>
+                    <td class="num">{{ fmt(e.result.percent.kalori, 0) }}%</td>
+                    <td class="num">{{ fmt(e.result.percent.protein, 0) }}%</td>
+                    <td class="num">{{ fmt(e.result.percent.lemak, 0) }}%</td>
+                    <td class="num">{{ fmt(e.result.percent.serat, 0) }}%</td>
+                    <td class="num"><strong>{{ fmt(e.score, 1) }}</strong></td>
+                    <td>
+                      @!categoryBadge({ category: e.category, label: e.result.categoryLabel, size: 'sm' })
+                    </td>
+                    <td class="small muted nowrap">{{ formatDate(e.createdAt) }}</td>
+                  </tr>
+                @end
+              </tbody>
+            </table>
+          </div>
+        </form>
+        @!pagination({ paginator: page })
+      @end
+    </div>
+  @end
+@end

@@ -1,0 +1,235 @@
+@let(errors = flashMessages.get('inputErrorsBag', {}))
+@let(catLabel = (key) => (categories.find((c) => c.key === key) || {}).label || '–')
+@let(target = 80)
+
+@layouts.app({ title: 'Uji kesesuaian pakar', sidebar: false })
+  @page({
+    title: 'Uji kesesuaian dengan pakar',
+    description: 'Bandingkan kategori sistem dengan penilaian pakar gizi pada 20–30 menu uji. Target PRD: minimal 80% menu masuk kategori yang sama.',
+  })
+    @slot('actions')
+      <a class="btn btn--secondary btn--sm" href="{{ urlFor('expert.template') }}">
+        @svg('lucide:download', { width: 14, height: 14 })
+        Templat CSV
+      </a>
+      <a class="btn btn--secondary btn--sm" href="{{ urlFor('expert.export', {}, { qs: { set: chosen.id } }) }}">
+        @svg('lucide:file-spreadsheet', { width: 14, height: 14 })
+        Ekspor hasil
+      </a>
+    @end
+
+    <div class="vstack-lg">
+      <form method="GET" action="{{ urlFor('expert.index') }}" class="panel row" style="padding: 16px">
+        <label class="small" for="set">Hitung dengan</label>
+        <select id="set" name="set">
+          @each(s in sets)
+            <option value="{{ s.id }}" {{ s.id === chosen.id ? 'selected' : '' }}>{{ s.name }}{{ s.isActive ? ' (aktif)' : '' }}</option>
+          @end
+        </select>
+        <label class="small" for="banding">bandingkan dengan</label>
+        <select id="banding" name="banding">
+          <option value="">—</option>
+          @each(s in sets)
+            <option value="{{ s.id }}" {{ compareWith && s.id === compareWith.id ? 'selected' : '' }}>{{ s.name }}</option>
+          @end
+        </select>
+        <button class="btn btn--primary btn--sm" type="submit">Hitung</button>
+      </form>
+
+      @if(report.total === 0)
+        <div class="empty">
+          <div class="empty__mark">
+            @svg('lucide:scale', { width: 22, height: 22 })
+          </div>
+          <h1>Belum ada menu uji</h1>
+          <p>Impor CSV dari templat atau tambahkan menu satu per satu di bawah.</p>
+        </div>
+      @else
+
+        <div class="grid-3">
+          <div class="panel" data-cat="{{ report.percent >= target ? 'layak' : 'tidak_layak' }}">
+            <div class="small muted">Kesesuaian · {{ chosen.name }}</div>
+            <div class="score-ring__value" style="color: var(--cat-color)">{{ fmt(report.percent, 1) }}%</div>
+            <div class="small">{{ report.matches }} dari {{ report.total }} menu sama kategorinya · target ≥ {{ target }}%</div>
+          </div>
+          @if(compareReport)
+            <div class="panel" data-cat="{{ compareReport.percent >= target ? 'layak' : 'tidak_layak' }}">
+              <div class="small muted">Kesesuaian · {{ compareWith.name }}</div>
+              <div class="score-ring__value" style="color: var(--cat-color)">{{ fmt(compareReport.percent, 1) }}%</div>
+              <div class="small">{{ compareReport.matches }} dari {{ compareReport.total }} menu</div>
+            </div>
+          @end
+          <div class="panel vstack-sm" style="{{ compareReport ? '' : 'grid-column: span 2' }}">
+            <div class="h3">Confusion matrix (baris = pakar, kolom = sistem)</div>
+            <div style="overflow-x: auto">
+              <table class="matrix">
+                <thead>
+                  <tr>
+                    <th>Pakar \ Sistem</th>
+                    @each(c in report.categories)
+                      <th>{{ c.label }}</th>
+                    @end
+                  </tr>
+                </thead>
+                <tbody>
+                  @each(a in report.categories)
+                    <tr>
+                      <th scope="row">{{ a.label }}</th>
+                      @each(b in report.categories)
+                        @let(count = report.confusion[a.key][b.key])
+                        <td class="{{ count > 0 && a.key === b.key ? 'is-active' : '' }}" style="--alpha: 1">{{ count }}</td>
+                      @end
+                    </tr>
+                  @end
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <div class="table-wrap">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>Menu uji</th>
+                <th class="num">Kalori</th>
+                <th class="num">Protein</th>
+                <th class="num">Lemak</th>
+                <th class="num">Serat</th>
+                <th>Pakar</th>
+                <th class="num">Skor</th>
+                <th>Sistem</th>
+                @if(compareReport)
+                  <th>{{ compareWith.name }}</th>
+                @end
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              @each((row, i) in report.rows)
+                <tr class="{{ row.match ? '' : 'is-active' }}">
+                  <td>
+                    {{ row.case.name }}
+                    <div class="small muted">{{ row.case.groupCode }}{{ row.case.expertName ? ` · ${row.case.expertName}` : '' }}</div>
+                  </td>
+                  <td class="num">{{ fmt(row.case.kalori, 1) }}</td>
+                  <td class="num">{{ fmt(row.case.protein, 1) }}</td>
+                  <td class="num">{{ fmt(row.case.lemak, 1) }}</td>
+                  <td class="num">{{ fmt(row.case.serat, 1) }}</td>
+                  <td>
+                    @!categoryBadge({ category: row.case.expertCategory, label: catLabel(row.case.expertCategory), size: 'sm' })
+                  </td>
+                  <td class="num">{{ row.score === null ? '–' : fmt(row.score, 1) }}</td>
+                  <td class="nowrap">
+                    @if(row.systemCategory)
+                      @!categoryBadge({ category: row.systemCategory, label: catLabel(row.systemCategory), size: 'sm' })
+                    @else
+                      <span class="field__error">{{ row.error }}</span>
+                    @end
+                    {{ row.match ? '✓' : '✗' }}
+                  </td>
+                  @if(compareReport)
+                    <td class="nowrap">
+                      {{ compareReport.rows[i].systemCategory ? catLabel(compareReport.rows[i].systemCategory) : '–' }}
+                      {{ compareReport.rows[i].match ? '✓' : '✗' }}
+                    </td>
+                  @end
+                  <td class="right">
+                    <form method="POST" action="{{ urlFor('expert.destroy', { id: row.case.id }, { qs: { _method: 'DELETE' } }) }}" class="inline-form">
+                      {{ csrfField() }}
+                      <button class="btn btn--ghost btn--sm" type="submit" aria-label="Hapus {{ row.case.name }}">
+                        @svg('lucide:trash-2', { width: 14, height: 14 })
+                      </button>
+                    </form>
+                  </td>
+                </tr>
+              @end
+            </tbody>
+          </table>
+        </div>
+        <p class="small muted">Baris berwarna = kategori sistem berbeda dengan pakar. Pakai daftar ini untuk kalibrasi titik himpunan dan konstanta aturan di halaman Parameter.</p>
+      @end
+
+      <div class="grid-2" style="align-items: start">
+        <section class="panel vstack">
+          <h2 class="h2">Impor menu uji (CSV)</h2>
+          <p class="small muted">
+            Kolom: name; group_code; sex (avg/L/P); kalori; protein; lemak; serat (kkal dan gram per porsi);
+            expert_category (tidak_layak, perlu_perbaikan, layak, sangat_layak); expert_name; notes.
+          </p>
+          <form method="POST" action="{{ urlFor('expert.import') }}" enctype="multipart/form-data" class="row">
+            {{ csrfField() }}
+            <input type="file" name="file" accept=".csv,text/csv" required />
+            <button class="btn btn--secondary btn--sm" type="submit">Impor</button>
+          </form>
+          @if(report.total)
+            <form method="POST" action="{{ urlFor('expert.clear', {}, { qs: { _method: 'DELETE' } }) }}" x-data x-on:submit="if (!confirm('Hapus semua menu uji?')) $event.preventDefault()">
+              {{ csrfField() }}
+              <button class="btn btn--danger btn--sm" type="submit">Hapus semua menu uji</button>
+            </form>
+          @end
+        </section>
+
+        <section class="panel vstack">
+          <h2 class="h2">Tambah satu menu uji</h2>
+          <form method="POST" action="{{ urlFor('expert.store') }}" class="vstack">
+            {{ csrfField() }}
+            <div class="field">
+              <label class="field__label" for="ex-name">Nama menu</label>
+              <input class="field__input" id="ex-name" name="name" value="{{ old('name') ?? '' }}" />
+              @if(errors.name)
+                <span class="field__error">{{ errors.name.join(' ') }}</span>
+              @end
+            </div>
+            <div class="grid-2">
+              <div class="field">
+                <label class="field__label" for="ex-group">Kelompok</label>
+                <select id="ex-group" name="groupCode">
+                  @each(g in groups)
+                    <option value="{{ g.code }}">{{ g.label }}</option>
+                  @end
+                </select>
+              </div>
+              <div class="field">
+                <label class="field__label" for="ex-sex">Jenis kelamin</label>
+                <select id="ex-sex" name="sex">
+                  <option value="avg">Rata-rata L/P</option>
+                  <option value="L">Laki-laki</option>
+                  <option value="P">Perempuan</option>
+                </select>
+              </div>
+            </div>
+            <div class="grid-4">
+              @each(n in nutrients)
+                <div class="field">
+                  <label class="field__label" for="ex-{{ n.key }}">{{ n.label }} ({{ n.unit }})</label>
+                  <input class="field__input num" id="ex-{{ n.key }}" name="{{ n.key }}" inputmode="decimal" value="{{ old(n.key) ?? '' }}" />
+                  @if(errors[n.key])
+                    <span class="field__error">{{ errors[n.key].join(' ') }}</span>
+                  @end
+                </div>
+              @end
+            </div>
+            <div class="grid-2">
+              <div class="field">
+                <label class="field__label" for="ex-cat">Kategori menurut pakar</label>
+                <select id="ex-cat" name="expertCategory">
+                  @each(c in categories)
+                    <option value="{{ c.key }}">{{ c.label }}</option>
+                  @end
+                </select>
+              </div>
+              <div class="field">
+                <label class="field__label" for="ex-expert">Nama pakar</label>
+                <input class="field__input" id="ex-expert" name="expertName" value="{{ old('expertName') ?? '' }}" />
+              </div>
+            </div>
+            <div>
+              <button class="btn btn--primary btn--sm" type="submit">Tambah</button>
+            </div>
+          </form>
+        </section>
+      </div>
+    </div>
+  @end
+@end

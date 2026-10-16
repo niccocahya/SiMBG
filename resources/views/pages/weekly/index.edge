@@ -1,0 +1,53 @@
+@let(errors = flashMessages.get('inputErrorsBag', {}))
+@layouts.app({ title: 'Menu mingguan' })
+  @page({
+    title: 'Menu mingguan',
+    description: 'Susun menu Senin sampai Jumat (atau sampai Minggu) dari evaluasi yang sudah ada, lalu bandingkan skornya.',
+  })
+    <div class="vstack-lg">
+      <form method="POST" action="{{ urlFor('weekly.store') }}" class="panel row" style="padding: 16px; align-items: flex-end">
+        {{ csrfField() }}
+        <div class="field" style="flex: 1 1 260px">
+          <label class="field__label" for="name">Nama rencana</label>
+          <input class="field__input" id="name" name="name" value="{{ old('name') ?? '' }}" placeholder="Misal: Minggu ke-1 Oktober, SDN 1" />
+          @if(errors.name)
+            <span class="field__error">{{ errors.name.join(' ') }}</span>
+          @end
+        </div>
+        <button class="btn btn--primary" type="submit">
+          @svg('lucide:plus', { width: 15, height: 15 })
+          Buat rencana
+        </button>
+      </form>
+
+      @if(plans.length === 0)
+        <div class="empty">
+          <div class="empty__mark">
+            @svg('lucide:calendar-days', { width: 22, height: 22 })
+          </div>
+          <h1>Belum ada rencana mingguan</h1>
+          <p>Buat rencana, lalu isi tiap hari dengan evaluasi dari riwayat.</p>
+        </div>
+      @else
+        <div class="table-wrap">
+          <table class="table">
+            <thead>
+              <tr><th>Rencana</th><th class="num">Hari terisi</th><th class="num">Rata-rata skor</th><th>Dibuat</th></tr>
+            </thead>
+            <tbody>
+              @each(plan in plans)
+                @let(filled = plan.days.filter((d) => d.evaluation && !d.evaluation.deletedAt))
+                <tr>
+                  <td><a class="il" href="{{ urlFor('weekly.show', { uuid: plan.uuid }) }}">{{ plan.name }}</a></td>
+                  <td class="num">{{ filled.length }}</td>
+                  <td class="num">{{ filled.length ? fmt(filled.reduce((s, d) => s + d.evaluation.score, 0) / filled.length, 1) : '–' }}</td>
+                  <td class="small muted">{{ formatDate(plan.createdAt) }}</td>
+                </tr>
+              @end
+            </tbody>
+          </table>
+        </div>
+      @end
+    </div>
+  @end
+@end

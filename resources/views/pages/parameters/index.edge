@@ -1,0 +1,94 @@
+@layouts.app({ title: 'Parameter', sidebar: false })
+  @page({
+    title: 'Parameter fuzzy',
+    description: 'Target gizi per porsi, titik himpunan, konstanta aturan, dan batas kategori. Set "Default PRD" terkunci; ubah lewat salinannya. Setiap evaluasi menyimpan salinan parameter yang dipakainya.',
+  })
+    @slot('actions')
+      @if(!parametersReadonly && !active.isLocked)
+        <form method="POST" action="{{ urlFor('parameters.reset') }}" class="inline-form">
+          {{ csrfField() }}
+          <button class="btn btn--secondary btn--sm" type="submit">Kembali ke Default PRD</button>
+        </form>
+      @end
+    @end
+
+    <div class="vstack-lg">
+
+      <div class="table-wrap">
+        <table class="table">
+          <thead>
+            <tr><th>Set parameter</th><th>Status</th><th>Persen porsi</th><th>Diubah</th><th class="right">Aksi</th></tr>
+          </thead>
+          <tbody>
+            @each(set in sets)
+              <tr class="{{ set.isActive ? 'is-active' : '' }}">
+                <td>
+                  <a class="il" href="{{ urlFor('parameters.show', { id: set.id }) }}"><strong>{{ set.name }}</strong></a>
+                  @if(set.description)
+                    <div class="small muted">{{ set.description }}</div>
+                  @end
+                </td>
+                <td class="nowrap">
+                  @if(set.isActive)
+                    <span class="chip">
+                      @svg('lucide:circle-check', { width: 12, height: 12 })
+                      dipakai
+                    </span>
+                  @end
+                  @if(set.isLocked)
+                    <span class="chip">
+                      @svg('lucide:lock', { width: 12, height: 12 })
+                      terkunci
+                    </span>
+                  @end
+                </td>
+                <td class="num">{{ fmt(set.config.portionPercent) }}%</td>
+                <td class="small muted nowrap">{{ formatDate(set.updatedAt ?? set.createdAt) }}</td>
+                <td class="right">
+                  <div class="row" style="justify-content: flex-end">
+                    <a class="btn btn--ghost btn--sm" href="{{ urlFor('parameters.export', { id: set.id }) }}">Ekspor JSON</a>
+                    @if(!parametersReadonly)
+                      <form method="POST" action="{{ urlFor('parameters.store') }}" class="inline-form">
+                        {{ csrfField() }}
+                        <input type="hidden" name="from" value="{{ set.id }}" />
+                        <button class="btn btn--ghost btn--sm" type="submit">Duplikat</button>
+                      </form>
+                      @if(!set.isActive)
+                        <form method="POST" action="{{ urlFor('parameters.activate', { id: set.id }) }}" class="inline-form">
+                          {{ csrfField() }}
+                          <button class="btn btn--secondary btn--sm" type="submit">Pakai</button>
+                        </form>
+                      @end
+                      @if(!set.isActive && !set.isLocked)
+                        <form method="POST" action="{{ urlFor('parameters.destroy', { id: set.id }, { qs: { _method: 'DELETE' } }) }}" class="inline-form" x-data x-on:submit="if (!confirm('Hapus set parameter ini?')) $event.preventDefault()">
+                          {{ csrfField() }}
+                          <button class="btn btn--ghost btn--sm" type="submit" aria-label="Hapus {{ set.name }}">
+                            @svg('lucide:trash-2', { width: 14, height: 14 })
+                          </button>
+                        </form>
+                      @end
+                    @end
+                  </div>
+                </td>
+              </tr>
+            @end
+          </tbody>
+        </table>
+      </div>
+
+      @if(!parametersReadonly)
+        <section class="panel vstack">
+          <div>
+            <h2 class="h2">Impor parameter</h2>
+            <p class="small muted">Unggah berkas JSON hasil ekspor (misalnya hasil kalibrasi bersama pakar). Berkas diperiksa dulu dan disimpan sebagai set baru yang belum dipakai.</p>
+          </div>
+          <form method="POST" action="{{ urlFor('parameters.import') }}" enctype="multipart/form-data" class="row">
+            {{ csrfField() }}
+            <input type="file" name="file" accept=".json,application/json" required />
+            <button class="btn btn--secondary btn--sm" type="submit">Impor</button>
+          </form>
+        </section>
+      @end
+    </div>
+  @end
+@end

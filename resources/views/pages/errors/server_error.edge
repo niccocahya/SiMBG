@@ -1,0 +1,12 @@
+@layouts.app({ title: 'Terjadi kesalahan' })
+  <div class="empty">
+    <div class="empty__mark">
+    @svg('lucide:server-crash', { width: 22, height: 22 })
+    </div>
+    <h1>Terjadi kesalahan</h1>
+    <p>
+      {{ error && error.name === 'FuzzyCoverageError' ? error.message : 'Server tidak bisa memproses permintaan ini. Coba lagi beberapa saat lagi.' }}
+    </p>
+    <a class="btn btn--primary" href="{{ urlFor('home') }}">Kembali ke evaluasi</a>
+  </div>
+@end

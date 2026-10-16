@@ -1,0 +1,27 @@
+@layouts.app({ title: `Cetak · ${evaluation.displayName}`, sidebar: false })
+  @page({
+    title: `Evaluasi gizi: ${evaluation.displayName}`,
+    description: `${evaluation.groupLabel} · ${sexLabel(evaluation.sex)} · ${formatDate(evaluation.createdAt)} · parameter "${evaluation.parameterSetName}"`,
+  })
+    @slot('actions')
+      <button type="button" class="btn btn--primary btn--sm no-print" x-data x-on:click="window.print()">
+        @svg('lucide:printer', { width: 14, height: 14 })
+        Cetak / simpan PDF
+      </button>
+    @end
+    <div class="vstack-lg">
+      <p class="note no-print">
+        @svg('lucide:info', { width: 16, height: 16 })
+        <span>Pilih <strong>Simpan sebagai PDF</strong> pada dialog cetak browser untuk mengekspor ke PDF.</span>
+      </p>
+      <div class="grid-2" style="align-items: start">
+        @!evaluation.summary({ evaluation })
+        @!evaluation.nutrients({ evaluation })
+      </div>
+      @!evaluation.charts({ evaluation })
+      @!evaluation.matrix({ evaluation })
+      @!evaluation.steps({ evaluation, open: true })
+      <p class="small muted">Tautan: {{ request.completeUrl().replace('/cetak', '') }}</p>
+    </div>
+  @end
+@end

@@ -1,0 +1,10 @@
+@layouts.app({ title: 'Halaman tidak ditemukan' })
+  <div class="empty">
+    <div class="empty__mark">
+    @svg('lucide:search-x', { width: 22, height: 22 })
+    </div>
+    <h1>Halaman tidak ditemukan</h1>
+    <p>Evaluasi atau halaman yang dicari tidak ada, atau sudah dihapus.</p>
+    <a class="btn btn--primary" href="{{ urlFor('home') }}">Mulai evaluasi baru</a>
+  </div>
+@end

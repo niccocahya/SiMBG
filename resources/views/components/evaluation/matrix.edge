@@ -1,0 +1,77 @@
+{{--
+  F-16: tabel aturan seperti di PRD. Sel aturan yang aktif diwarnai
+  sesuai α-nya.
+--}}
+@let(e = $props.get('evaluation'))
+@let(cfg = e.parameterSnapshot)
+@let(v = cfg.variables)
+@let(rules1 = e.result.stage1.rules)
+@let(rules2 = e.result.stage2.rules)
+
+<div class="grid-2">
+  <div class="vstack-sm">
+    <div class="h3">Tahap 1 · kalori × protein → skor kecukupan</div>
+    <div style="overflow-x: auto">
+      <table class="matrix">
+        <thead>
+          <tr>
+            <th>Kalori \ Protein</th>
+            @each(ps in v.protein.sets)
+              <th scope="col">{{ ps.label }}</th>
+            @end
+          </tr>
+        </thead>
+        <tbody>
+          @each(ks in v.kalori.sets)
+            <tr>
+              <th scope="row">{{ ks.label }}</th>
+              @each(ps in v.protein.sets)
+                @let(rule = rules1.find((x) => x.when.kalori === ks.key && x.when.protein === ps.key))
+                <td class="{{ rule && rule.alpha > 0 ? 'is-active' : '' }}" style="--alpha: {{ rule ? rule.alpha : 0 }}">
+                  {{ rule ? fmt(rule.z) : '–' }}
+                  @if(rule && rule.alpha > 0)
+                    <small>α {{ fmt(rule.alpha, 2) }}</small>
+                  @end
+                </td>
+              @end
+            </tr>
+          @end
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="vstack-sm">
+    <div class="h3">Tahap 2 · lemak × kecukupan × serat → skor akhir</div>
+    <div style="overflow-x: auto">
+      <table class="matrix">
+        <thead>
+          <tr>
+            <th>Lemak · Kecukupan</th>
+            @each(ss in v.serat.sets)
+              <th scope="col">Serat {{ ss.label }}</th>
+            @end
+          </tr>
+        </thead>
+        <tbody>
+          @each(ls in v.lemak.sets)
+            @each(cs in v.kecukupan.sets)
+              <tr>
+                <th scope="row">{{ ls.label }} · {{ cs.label }}</th>
+                @each(ss in v.serat.sets)
+                  @let(rule = rules2.find((x) => x.when.lemak === ls.key && x.when.kecukupan === cs.key && x.when.serat === ss.key))
+                  <td class="{{ rule && rule.alpha > 0 ? 'is-active' : '' }}" style="--alpha: {{ rule ? rule.alpha : 0 }}">
+                    {{ rule ? fmt(rule.z) : '–' }}
+                    @if(rule && rule.alpha > 0)
+                      <small>α {{ fmt(rule.alpha, 2) }}</small>
+                    @end
+                  </td>
+                @end
+              </tr>
+            @end
+          @end
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,23 @@
+{{-- F-06: grafik fungsi keanggotaan dengan penanda nilai input --}}
+@let(e = $props.get('evaluation'))
+@let(r = e.result)
+@let(cfg = e.parameterSnapshot)
+@let(items = [
+  { key: 'kalori', value: r.percent.kalori, unit: '%' },
+  { key: 'protein', value: r.percent.protein, unit: '%' },
+  { key: 'kecukupan', value: r.stage1.output, unit: '' },
+  { key: 'lemak', value: r.percent.lemak, unit: '%' },
+  { key: 'serat', value: r.percent.serat, unit: '%' },
+])
+
+<div class="charts">
+  @each(item in items)
+    <figure class="chart-card">
+      <figcaption class="chart-card__title">
+        <span>{{ cfg.variables[item.key].label }}{{ item.key === 'kecukupan' ? ' (tahap 2)' : '' }}</span>
+        <span class="num muted">{{ fmt(item.value, 1) }}{{ item.unit }}</span>
+      </figcaption>
+      {{{ membershipSvg(cfg.variables[item.key], item.value) }}}
+    </figure>
+  @end
+</div>

@@ -1,0 +1,97 @@
+@let(v = config.variables)
+@layouts.app({ title: 'Tentang metode' })
+  @page({
+    title: 'Tentang metode',
+    description: `Cara SI-MBG menilai kelayakan gizi menu. Angka di halaman ini dibaca langsung dari parameter yang sedang aktif: "${active.name}".`,
+  })
+    <div class="vstack-lg">
+      <section class="panel vstack">
+        <h2 class="h2">Ringkasnya</h2>
+        <ol class="vstack-sm" style="padding-left: 20px">
+          <li>Pengguna mengisi kalori, protein, lemak, dan serat satu porsi menu (atau memilih bahan dari tabel komposisi pangan).</li>
+          <li>Setiap nilai diubah menjadi <strong>persen target porsi</strong> = AKG harian kelompok sasaran × {{ fmt(config.portionPercent) }}%.</li>
+          <li><strong>Tahap 1</strong> (9 aturan): kalori dan protein menghasilkan <strong>skor kecukupan</strong> 0–100.</li>
+          <li><strong>Tahap 2</strong> (27 aturan): skor kecukupan, lemak, dan serat menghasilkan <strong>skor kelayakan</strong> 0–100.</li>
+          <li>Skor akhir dipetakan ke kategori: {{ config.categories.map((c, i) => i === 0 ? `${c.label} (< ${fmt(config.categories[1].min)})` : `${c.label} (≥ ${fmt(c.min)})`).join(', ') }}.</li>
+        </ol>
+        <p class="small muted">
+          Dua tahap dipakai agar jumlah aturan 9 + 27 = 36, bukan 3⁴ = 81. Sugeno orde nol dipilih karena keluarannya angka tegas,
+          sehingga skor dihitung dengan rata-rata terbobot tanpa defuzzifikasi centroid.
+        </p>
+        <p class="formula">α<sub>i</sub> = min(μ<sub>A</sub>(x₁), μ<sub>B</sub>(x₂), …) &nbsp;&nbsp;&nbsp; z = Σ α<sub>i</sub> z<sub>i</sub> / Σ α<sub>i</sub></p>
+      </section>
+
+      <section class="vstack">
+        <h2 class="h2">Target per porsi ({{ fmt(config.portionPercent) }}% AKG, rata-rata L/P)</h2>
+        <div class="table-wrap">
+          <table class="table">
+            <thead>
+              <tr><th>Kelompok sasaran</th><th class="num">Energi</th><th class="num">Protein</th><th class="num">Lemak</th><th class="num">Serat</th></tr>
+            </thead>
+            <tbody>
+              @each(t in targets)
+                <tr>
+                  <td>{{ t.group.label }}</td>
+                  @each(n in nutrients)
+                    <td class="num">{{ fmt(t.target[n.key], 1) }} {{ n.unit }}</td>
+                  @end
+                </tr>
+              @end
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="vstack">
+        <h2 class="h2">Himpunan fuzzy</h2>
+        <div class="charts">
+          @each(key in ['kalori', 'protein', 'kecukupan', 'lemak', 'serat'])
+            <figure class="chart-card">
+              <figcaption class="chart-card__title">
+                <span>{{ v[key].label }}</span>
+                <span class="small muted">{{ v[key].sets.map((s) => `${s.label} [${s.params.join(', ')}]`).join(' · ') }}</span>
+              </figcaption>
+              {{{ membershipSvg(v[key], null) }}}
+            </figure>
+          @end
+        </div>
+        <p class="small muted">Serat tidak punya himpunan "berlebih" karena serat di atas target tidak dianggap masalah untuk satu porsi.</p>
+      </section>
+
+      <section class="panel vstack">
+        <h2 class="h2">Prinsip aturan tahap 2</h2>
+        <ul class="vstack-sm" style="padding-left: 20px">
+          <li>Skor kecukupan Rendah selalu menghasilkan 20 apa pun lemak dan seratnya, karena energi dan protein adalah tujuan utama MBG.</li>
+          <li>Lemak Kurang menurunkan skor satu tingkat; lemak Berlebih membatasi skor paling tinggi 50.</li>
+          <li>Serat Kurang menurunkan skor satu tingkat lagi, sampai paling rendah 20.</li>
+          <li>Sangat Layak (95) hanya mungkin jika kecukupan Tinggi, lemak Cukup, dan serat Cukup.</li>
+        </ul>
+        <p class="small">
+          Tabel lengkap aturan dan konstantanya ada di
+          <a class="il" href="{{ urlFor('parameters.show', { id: active.id }) }}">halaman parameter</a>.
+        </p>
+      </section>
+
+      <section class="panel vstack">
+        <h2 class="h2">Rujukan</h2>
+        <ul class="vstack-sm" style="padding-left: 20px">
+          @each(s in (config.sources ?? []))
+            <li>{{ s }}</li>
+          @end
+          <li>Tabel Komposisi Pangan Indonesia (TKPI), Kementerian Kesehatan — data bahan pada aplikasi ini adalah subset awal yang perlu diverifikasi.</li>
+        </ul>
+      </section>
+
+      <section class="panel vstack">
+        <h2 class="h2">Batasan</h2>
+        <ul class="vstack-sm" style="padding-left: 20px">
+          <li>Alat bantu keputusan, bukan pengganti ahli gizi atau sertifikasi resmi menu.</li>
+          <li>Tidak menilai harga, keamanan pangan (termasuk jeda waktu sajian), alergen, gula, natrium, vitamin, dan mineral.</li>
+          <li>Lemak dari minyak goreng hanya terhitung jika minyak dimasukkan sebagai bahan.</li>
+          <li>Titik himpunan dan aturan adalah nilai awal yang perlu dikalibrasi bersama pakar (lihat Uji pakar).</li>
+        </ul>
+        @!disclaimer()
+      </section>
+    </div>
+  @end
+@end

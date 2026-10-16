@@ -1,0 +1,127 @@
+{{--
+  F-05: langkah hitung. Dibaca dari jejak yang tersimpan, sehingga sama
+  persis di halaman hasil, riwayat, dan cetak.
+--}}
+@let(e = $props.get('evaluation'))
+@let(r = e.result)
+@let(cfg = e.parameterSnapshot)
+@let(open = $props.get('open', false))
+
+<details class="step" {{ open ? 'open' : '' }}>
+  <summary>1. Ubah ke persen target porsi</summary>
+  <div class="step__body vstack">
+    <p class="small muted">
+      Target porsi = AKG harian {{ e.groupLabel }} ({{ sexLabel(e.sex) }}) × {{ fmt(cfg.portionPercent) }}%.
+      Persen = nilai ÷ target × 100. Nilai di atas 200% dipotong ke 200% sebelum dihitung.
+    </p>
+    <div class="table-wrap">
+      <table class="table">
+        <thead>
+          <tr><th>Kandungan</th><th class="num">Nilai</th><th class="num">Target porsi</th><th class="num">% target</th></tr>
+        </thead>
+        <tbody>
+          @each(n in nutrients)
+            <tr>
+              <td>{{ n.label }}</td>
+              <td class="num">{{ fmt(e.values[n.key]) }} {{ n.unit }}</td>
+              <td class="num">{{ fmt(e.target[n.key]) }} {{ n.unit }}</td>
+              <td class="num">
+                <span class="formula">{{ fmt(e.values[n.key]) }} ÷ {{ fmt(e.target[n.key]) }} × 100 = {{ fmt(r.percent[n.key]) }}%</span>
+              </td>
+            </tr>
+          @end
+        </tbody>
+      </table>
+    </div>
+  </div>
+</details>
+
+@each((stage, si) in [r.stage1, r.stage2])
+  <details class="step" {{ open ? 'open' : '' }}>
+    <summary>{{ si === 0 ? '2. Tahap 1: fuzzifikasi kalori dan protein' : '4. Tahap 2: fuzzifikasi lemak, skor kecukupan, dan serat' }}</summary>
+    <div class="step__body vstack">
+      <p class="small muted">Trapesium [a, b, c, d]: μ = 0 di a, naik ke 1 di b, tetap 1 sampai c, turun ke 0 di d.</p>
+      <div class="table-wrap">
+        <table class="table">
+          <thead>
+            <tr><th>Variabel</th><th>Himpunan</th><th>[a, b, c, d]</th><th>Perhitungan</th><th class="num">μ</th></tr>
+          </thead>
+          <tbody>
+            @each(input in stage.inputs)
+              @each((m, mi) in input.memberships)
+                <tr class="{{ m.mu > 0 ? 'is-active' : 'is-dim' }}">
+                  <td>
+                    @if(mi === 0)
+                      <strong>{{ input.label }}</strong>
+                      <div class="small muted">x = {{ fmt(input.value) }}{{ input.clipped ? ` (asli ${fmt(input.raw)}, dipotong)` : '' }}</div>
+                    @end
+                  </td>
+                  <td>{{ m.label }}</td>
+                  <td class="nowrap num">[{{ m.params.map((p) => fmt(p)).join(', ') }}]</td>
+                  <td><span class="formula">{{ explainMembership(input.value, m) }}</span></td>
+                  <td class="num"><strong>{{ fmt(m.mu, 4) }}</strong></td>
+                </tr>
+              @end
+            @end
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </details>
+
+  <details class="step" {{ open ? 'open' : '' }} x-data="{ all: false }">
+    <summary>
+      {{ si === 0 ? '3. Tahap 1: nilai α tiap aturan dan skor kecukupan' : '5. Tahap 2: nilai α tiap aturan dan skor akhir' }}
+    </summary>
+    <div class="step__body vstack">
+      <p class="small muted">
+        α = min(μ setiap syarat) — operator AND memakai minimum. Keluaran = Σ(α × z) ÷ Σα.
+        {{ stage.rules.filter((x) => x.alpha > 0).length }} dari {{ stage.rules.length }} aturan aktif.
+      </p>
+      <label class="row small no-print">
+        <input type="checkbox" x-model="all" /> Tampilkan semua {{ stage.rules.length }} aturan
+      </label>
+      <div class="table-wrap">
+        <table class="table">
+          <thead>
+            <tr><th>Aturan</th><th>JIKA</th><th>min(μ)</th><th class="num">α</th><th class="num">z</th><th class="num">α × z</th></tr>
+          </thead>
+          <tbody>
+            @each(rule in stage.rules)
+              <tr class="{{ rule.alpha > 0 ? 'is-active' : 'is-dim' }}" x-show="all || {{ rule.alpha > 0 }}">
+                <td class="nowrap">{{ rule.id }}</td>
+                <td>{{ ruleLabel(cfg, rule.when) }}</td>
+                <td class="nowrap num">min({{ rule.memberships.map((m) => fmt(m, 2)).join('; ') }})</td>
+                <td class="num">{{ fmt(rule.alpha, 4) }}</td>
+                <td class="num">{{ fmt(rule.z) }}</td>
+                <td class="num">{{ fmt(rule.alphaZ, 4) }}</td>
+              </tr>
+            @end
+          </tbody>
+          <tfoot>
+            <tr>
+              <th colspan="3">Jumlah</th>
+              <th class="num">Σα = {{ fmt(stage.sumAlpha, 4) }}</th>
+              <th></th>
+              <th class="num">Σαz = {{ fmt(stage.sumAlphaZ, 4) }}</th>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+      <p class="formula">
+        {{ si === 0 ? 'Skor kecukupan' : 'Skor akhir' }} =
+        {{ stage.rules.filter((x) => x.alpha > 0).map((x) => `${fmt(x.alpha, 4)} × ${fmt(x.z)}`).join(' + ') }}
+        ÷ {{ fmt(stage.sumAlpha, 4) }} = <strong>{{ fmt(stage.output, 2) }}</strong>
+      </p>
+      @if(si === 1)
+        <p class="small">
+          Kategori: skor {{ fmt(r.score, 2) }} →
+          @!categoryBadge({ category: r.category, label: r.categoryLabel, size: 'sm' })
+          <span class="muted">
+            ({{ cfg.categories.map((c, i) => i === 0 ? c.label : `${fmt(c.min)} ≤ ${c.label}`).join(' < ') }})
+          </span>
+        </p>
+      @end
+    </div>
+  </details>
+@end

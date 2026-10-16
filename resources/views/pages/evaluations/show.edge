@@ -1,0 +1,153 @@
+@let(r = evaluation.result)
+@let(simData = { config: evaluation.parameterSnapshot, target: evaluation.target, percent: r.percent })
+
+@layouts.app({ title: evaluation.displayName, sidebar: false })
+  @page({
+    title: evaluation.displayName,
+    description: `${evaluation.groupLabel} · ${sexLabel(evaluation.sex)} · ${formatDate(evaluation.createdAt)} · parameter "${evaluation.parameterSetName}"`,
+  })
+    @slot('actions')
+      <a class="btn btn--secondary btn--sm" href="{{ urlFor('home', {}, { qs: { dari: evaluation.uuid } }) }}">
+        @svg('lucide:pencil', { width: 14, height: 14 })
+        Ubah input
+      </a>
+      <a class="btn btn--secondary btn--sm" href="{{ urlFor('evaluations.print', { uuid: evaluation.uuid }) }}" target="_blank" rel="noopener">
+        @svg('lucide:printer', { width: 14, height: 14 })
+        Cetak / PDF
+      </a>
+      <a class="btn btn--secondary btn--sm" href="{{ urlFor('evaluations.csv', { uuid: evaluation.uuid }) }}">
+        @svg('lucide:file-spreadsheet', { width: 14, height: 14 })
+        CSV
+      </a>
+      <span x-data="copyLink">
+        <button type="button" class="btn btn--secondary btn--sm" x-on:click="copy">
+          @svg('lucide:link', { width: 14, height: 14 })
+          <span x-text="copied ? 'Tersalin' : 'Salin tautan'">Salin tautan</span>
+        </button>
+      </span>
+      <a class="btn btn--primary btn--sm" href="{{ urlFor('home') }}">
+        @svg('lucide:plus', { width: 14, height: 14 })
+        Evaluasi baru
+      </a>
+    @end
+
+    <div class="vstack-lg">
+      @if(outdated)
+        <div class="note">
+          @svg('lucide:history', { width: 16, height: 16 })
+          <div class="vstack-sm">
+            <span>
+              Evaluasi ini memakai parameter <strong>{{ evaluation.parameterSetName }}</strong> saat dibuat, berbeda dengan parameter aktif sekarang
+              (<strong>{{ active.name }}</strong>). Hasil di bawah tetap dihitung dengan parameter lama.
+            </span>
+            <form method="POST" action="{{ urlFor('evaluations.recompute', { uuid: evaluation.uuid }) }}">
+              {{ csrfField() }}
+              <button type="submit" class="btn btn--secondary btn--sm">Hitung ulang dengan parameter sekarang</button>
+            </form>
+          </div>
+        </div>
+      @end
+
+      <div class="grid-2" style="align-items: start">
+        @!evaluation.summary({ evaluation })
+        <div class="vstack">
+          <div class="h2">Kandungan gizi per porsi</div>
+          @!evaluation.nutrients({ evaluation })
+        </div>
+      </div>
+
+      {{-- F-13: simulasi --}}
+      <section class="panel vstack no-print" x-data="simulator">
+        <script type="application/json" id="sim-data">{{{ json(simData) }}}</script>
+        <div class="row row--between">
+          <div>
+            <h2 class="h2">Simulasi: bagaimana jika menunya diubah?</h2>
+            <p class="small muted">Geser untuk melihat perubahan skor secara langsung. Hitungan memakai mesin dan parameter yang sama dengan hasil di atas.</p>
+          </div>
+          <button type="button" class="btn btn--ghost btn--sm" x-on:click="reset" x-show="changed">Kembalikan</button>
+        </div>
+        <div class="sim-grid">
+          <div class="vstack">
+            @each(n in nutrients)
+              <div class="vstack-sm">
+                <div class="row row--between small">
+                  <label for="sim-{{ n.key }}"><strong>{{ n.label }}</strong></label>
+                  <span class="num">
+                    <span x-text="fmt(grams('{{ n.key }}'), 1)"></span> {{ n.unit }}
+                    · <span x-text="fmt(Number(percent.{{ n.key }}), 0)"></span>%
+                    <span class="muted" x-text="delta('{{ n.key }}')"></span>
+                  </span>
+                </div>
+                <input id="sim-{{ n.key }}" class="slider" type="range" min="0" max="200" step="1" x-model.number="percent.{{ n.key }}" />
+              </div>
+            @end
+          </div>
+          <div class="vstack" x-show="result" x-cloak>
+            <template x-if="result">
+              <div class="vstack" x-bind:data-cat="result.category">
+                <div class="row">
+                  <div class="score-ring__value" x-text="fmt(result.score, 1)"></div>
+                  <span class="badge" x-bind:data-cat="result.category" x-text="result.categoryLabel"></span>
+                </div>
+                <div class="bar"><span x-bind:style="'width:' + result.score + '%'"></span></div>
+                <ul class="reasons small">
+                  <template x-for="reason in result.reasons" :key="reason.code">
+                    <li class="reason" x-bind:class="'reason--' + reason.severity">
+                      <span class="reason__text" x-text="reason.text"></span>
+                    </li>
+                  </template>
+                </ul>
+              </div>
+            </template>
+            <p class="field__error" x-show="error" x-text="error"></p>
+          </div>
+        </div>
+        <div class="charts" x-show="changed" x-cloak>
+          <template x-for="v in ['kalori', 'protein', 'kecukupan', 'lemak', 'serat']" :key="v">
+            <figure class="chart-card">
+              <figcaption class="chart-card__title" x-text="config.variables[v].label"></figcaption>
+              <div x-html="chart(v)"></div>
+            </figure>
+          </template>
+        </div>
+        <form method="POST" action="{{ urlFor('evaluations.store') }}" class="row" x-show="changed" x-cloak>
+          {{ csrfField() }}
+          <input type="hidden" name="source" value="simulasi" />
+          <input type="hidden" name="mode" value="manual" />
+          <input type="hidden" name="menuName" value="{{ (evaluation.menuName ?? 'Menu') + ' (simulasi)' }}" />
+          <input type="hidden" name="groupCode" value="{{ evaluation.groupCode }}" />
+          <input type="hidden" name="sex" value="{{ evaluation.sex }}" />
+          @each(n in nutrients)
+            <input type="hidden" name="{{ n.key }}" x-bind:value="Math.max({{ n.key === 'kalori' ? 1 : 0 }}, Math.round(grams('{{ n.key }}') * 1000) / 1000)" />
+          @end
+          <button type="submit" class="btn btn--primary btn--sm">Simpan sebagai evaluasi baru</button>
+          <span class="small muted">Disimpan dengan parameter yang sedang aktif.</span>
+        </form>
+      </section>
+
+      <section class="vstack">
+        <h2 class="h2">Grafik fungsi keanggotaan</h2>
+        @!evaluation.charts({ evaluation })
+      </section>
+
+      <section class="vstack">
+        <h2 class="h2">Tabel aturan yang aktif</h2>
+        @!evaluation.matrix({ evaluation })
+      </section>
+
+      <section class="vstack">
+        <h2 class="h2">Langkah perhitungan</h2>
+        @!evaluation.steps({ evaluation })
+      </section>
+
+      @if(evaluation.deviceId === deviceId)
+        <form method="POST" action="{{ urlFor('evaluations.destroy', { uuid: evaluation.uuid }, { qs: { _method: 'DELETE' } }) }}" class="no-print" x-data x-on:submit="if (!confirm('Hapus evaluasi ini dari riwayat?')) $event.preventDefault()">
+          {{ csrfField() }}
+          <button type="submit" class="btn btn--danger btn--sm">
+          @svg('lucide:trash-2', { width: 14, height: 14 })
+          Hapus dari riwayat</button>
+        </form>
+      @end
+    </div>
+  @end
+@end

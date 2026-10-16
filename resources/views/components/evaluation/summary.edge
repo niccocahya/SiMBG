@@ -1,0 +1,69 @@
+{{-- F-04: skor, kategori, alasan, dan saran --}}
+@let(e = $props.get('evaluation'))
+@let(r = e.result)
+
+<div class="panel vstack" data-cat="{{ r.category }}">
+  <div class="score-card">
+    <div class="score-ring" style="--p: {{ Math.max(0, Math.min(100, r.score)) }}">
+      <div class="score-ring__inner">
+        <div>
+          <div class="score-ring__value">{{ fmt(r.score, 1) }}</div>
+          <div class="score-ring__max">dari 100</div>
+        </div>
+      </div>
+    </div>
+    <div class="vstack-sm">
+      @!categoryBadge({ category: r.category, label: r.categoryLabel })
+      <div class="h2">
+        @if(r.category === 'sangat_layak')
+          Kandungan gizi menu cukup dan seimbang.
+        @elseif(r.category === 'layak')
+          Menu layak, masih bisa diperbaiki sedikit.
+        @elseif(r.category === 'perlu_perbaikan')
+          Menu perlu diperbaiki sebelum disajikan.
+        @else
+          Menu belum memenuhi kebutuhan gizi.
+        @end
+      </div>
+      <div class="small muted">Skor kecukupan energi-protein (tahap 1): <strong>{{ fmt(r.stage1.output, 1) }}</strong></div>
+      <div>
+        <div class="scale">
+          <div data-cat="tidak_layak"></div>
+          <div data-cat="perlu_perbaikan"></div>
+          <div data-cat="layak"></div>
+          <div data-cat="sangat_layak"></div>
+        </div>
+        <div class="scale-labels">
+          <span>0</span><span>40</span><span>65</span><span>85</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section__header">
+    <h2 class="section__title">Alasan</h2>
+  </div>
+  <ul class="reasons">
+    @each(reason in r.reasons)
+      <li class="reason reason--{{ reason.severity }}">
+        <span class="reason__icon">
+          @if(reason.severity === 'baik')
+            @svg('lucide:circle-check', { width: 18, height: 18 })
+          @elseif(reason.severity === 'masalah')
+            @svg('lucide:circle-alert', { width: 18, height: 18 })
+          @else
+            @svg('lucide:info', { width: 18, height: 18 })
+          @end
+        </span>
+        <div>
+          <div class="reason__text">{{ reason.text }}</div>
+          @if(reason.suggestion && reason.severity === 'masalah')
+            <div class="reason__hint">Saran: {{ reason.suggestion }}</div>
+          @end
+        </div>
+      </li>
+    @end
+  </ul>
+
+  @!disclaimer()
+</div>

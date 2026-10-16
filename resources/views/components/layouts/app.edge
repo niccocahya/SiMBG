@@ -1,0 +1,221 @@
+{{--
+  Tata letak bergaya portal sekolah/pemerintahan (boxed layout, top bar,
+  header dengan logo dan banner, menu gelap, sidebar widget). Warna diambil
+  dari logo BGN. Satu peran, tanpa login.
+
+  Props: title, sidebar (default true; matikan untuk halaman yang lebar).
+--}}
+@let(nav = [
+  { label: 'Evaluasi', route: 'home', exact: true },
+  { label: 'Riwayat', route: 'history.index' },
+  { label: 'Menu mingguan', route: 'weekly.index' },
+  { label: 'Bahan pangan', route: 'ingredients.index' },
+  { label: 'Parameter', route: 'parameters.index' },
+  { label: 'Uji pakar', route: 'expert.index' },
+  { label: 'Tentang metode', route: 'about' },
+])
+@let(pageTitle = $props.get('title'))
+@let(showSidebar = $props.get('sidebar', true))
+@let(widgets = await siteWidgets())
+@let(today = new Date().toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Jakarta' }))
+@let(isHome = request.url() === '/')
+<!DOCTYPE html>
+<html
+  lang="id"
+  data-theme="{{
+    request.plainCookie('app_theme', {
+      defaultValue: 'light',
+      encoded: false,
+    })
+  }}"
+>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="Evaluasi kelayakan gizi menu Makan Bergizi Gratis dengan Fuzzy Sugeno" />
+    <link rel="icon" href="/favicon.png" type="image/png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600;700&family=Roboto:wght@400;500;700;900&display=swap" />
+    <title>{{ pageTitle ? `${pageTitle} · SI-MBG` : 'SI-MBG · Evaluasi Kelayakan Gizi Menu' }}</title>
+    @vite(['resources/css/main.css', 'resources/js/app.js'])
+    @stack('dumper')
+  </head>
+  <body>
+    @!sideAds()
+    <div class="site">
+      {{-- Top bar: tanggal + ticker evaluasi terbaru --}}
+      <div class="site-topbar">
+        <span class="site-topbar__date">{{ today }}</span>
+        <span class="site-topbar__label">Evaluasi terbaru</span>
+        <div class="ticker" aria-label="Evaluasi terbaru">
+          @if(widgets.latest.length)
+            <div class="ticker__track">
+              @each(round in [1, 2])
+                @each(e in widgets.latest)
+                  <a href="{{ urlFor('evaluations.show', { uuid: e.uuid }) }}" {{ round === 2 ? 'aria-hidden=true tabindex=-1' : '' }}>
+                    {{ e.displayName }} — {{ fmt(e.score, 0) }} ({{ e.result.categoryLabel }})
+                  </a>
+                @end
+              @end
+            </div>
+          @else
+            <span class="ticker__empty">Belum ada evaluasi. Mulai dari menu Evaluasi.</span>
+          @end
+        </div>
+        @!themeToggle()
+      </div>
+
+      {{-- Header: logo + nama, banner di kanan --}}
+      <header class="site-header">
+        <a href="{{ urlFor('home') }}" class="site-brand" aria-label="SI-MBG, ke halaman evaluasi">
+          <img class="site-brand__logo" src="/images/logo-bgn.png" alt="Logo Badan Gizi Nasional" width="76" height="76" />
+          <span class="site-brand__text">
+            <span class="site-brand__name">SI-MBG</span>
+            <span class="site-brand__tag">Sistem Evaluasi Kelayakan Gizi Menu</span>
+          </span>
+        </a>
+        <div class="site-banner">
+          {{-- Foto resmi 2024 (domain publik, Kemensetneg), latar dihapus --}}
+          <figure class="site-banner__person site-banner__person--left">
+            <img src="/images/presiden.png" alt="Prabowo Subianto, Presiden Republik Indonesia" width="344" height="420" />
+            <figcaption>
+              <strong>Prabowo Subianto</strong>
+              <span>Presiden RI</span>
+            </figcaption>
+          </figure>
+          <div class="site-banner__text">
+            <span class="site-banner__eyebrow">Program Makan Bergizi Gratis</span>
+            <span class="site-banner__title">Menu Bergizi, Seimbang, Layak</span>
+            <span class="site-banner__sub">Penilaian kalori · protein · lemak · serat dengan Fuzzy Sugeno</span>
+          </div>
+          <figure class="site-banner__person site-banner__person--right">
+            <img src="/images/wapres.png" alt="Gibran Rakabuming Raka, Wakil Presiden Republik Indonesia" width="343" height="420" />
+            <figcaption>
+              <strong>Gibran Rakabuming Raka</strong>
+              <span>Wakil Presiden RI</span>
+            </figcaption>
+          </figure>
+        </div>
+      </header>
+
+      {{-- Menu utama --}}
+      <nav class="site-nav" aria-label="Navigasi utama">
+        <a class="site-nav__home {{ isHome ? 'is-active' : '' }}" href="{{ urlFor('home') }}" aria-label="Beranda">
+          @svg('lucide:house', { width: 22, height: 22 })
+        </a>
+        <div class="site-nav__menu">
+          @each(item in nav)
+            @navLink({ route: item.route, exact: item.exact, class: 'site-nav__item' })
+              {{ item.label }}
+            @end
+          @end
+        </div>
+        <form class="site-nav__search" method="GET" action="{{ urlFor('history.index') }}" role="search">
+          <input name="q" placeholder="Cari menu di riwayat" aria-label="Cari menu di riwayat" />
+          <button type="submit" aria-label="Cari">
+            @svg('lucide:search', { width: 16, height: 16 })
+          </button>
+        </form>
+      </nav>
+
+      <div class="site-content {{ showSidebar ? 'has-sidebar' : '' }}">
+        <main class="site-main">{{{ await $slots.main() }}}</main>
+
+        @if(showSidebar)
+          <aside class="site-sidebar" aria-label="Informasi tambahan">
+            <section class="widget">
+              <h2 class="widget-title"><span>Evaluasi Terbaru</span></h2>
+              @if(widgets.latest.length)
+                <ul class="widget-list">
+                  @each(e in widgets.latest)
+                    <li>
+                      <a href="{{ urlFor('evaluations.show', { uuid: e.uuid }) }}" class="widget-post">
+                        <span class="widget-post__score" data-cat="{{ e.category }}">{{ fmt(e.score, 0) }}</span>
+                        <span>
+                          <span class="widget-post__title">{{ e.displayName }}</span>
+                          <span class="widget-post__meta">
+                            @svg('lucide:calendar', { width: 12, height: 12 })
+                            {{ formatDate(e.createdAt) }}
+                          </span>
+                        </span>
+                      </a>
+                    </li>
+                  @end
+                </ul>
+                <a class="widget-more" href="{{ urlFor('history.index') }}">Lihat semua riwayat »</a>
+              @else
+                <p class="small muted">Belum ada evaluasi.</p>
+              @end
+            </section>
+
+            <section class="widget">
+              <h2 class="widget-title"><span>Skala Kategori</span></h2>
+              <ul class="widget-scale">
+                @each((c, i) in widgets.active.config.categories)
+                  <li data-cat="{{ c.key }}">
+                    <span class="widget-scale__dot"></span>
+                    <span>{{ c.label }}</span>
+                    <span class="num">{{ i === widgets.active.config.categories.length - 1 ? `≥ ${fmt(c.min)}` : `${fmt(c.min)}–${fmt(widgets.active.config.categories[i + 1].min)}` }}</span>
+                  </li>
+                @end
+              </ul>
+            </section>
+
+            <section class="widget">
+              <h2 class="widget-title"><span>Parameter Aktif</span></h2>
+              <p class="small"><strong>{{ widgets.active.name }}</strong></p>
+              <p class="small muted">Target per porsi {{ fmt(widgets.active.config.portionPercent) }}% AKG harian · 9 + 27 aturan</p>
+              <a class="widget-more" href="{{ urlFor('parameters.show', { id: widgets.active.id }) }}">Lihat parameter »</a>
+            </section>
+
+            <section class="widget">
+              <h2 class="widget-title"><span>Tautan Cepat</span></h2>
+              <div class="widget-links">
+                <a href="{{ urlFor('home') }}">Evaluasi menu baru</a>
+                <a href="{{ urlFor('weekly.index') }}">Susun menu mingguan</a>
+                <a href="{{ urlFor('expert.index') }}">Uji kesesuaian pakar</a>
+                <a href="{{ urlFor('about') }}">Cara kerja Fuzzy Sugeno</a>
+              </div>
+            </section>
+          </aside>
+        @end
+      </div>
+
+      <footer class="site-footer">
+        <div class="site-footer__widgets">
+          <div class="site-footer__brand">
+            <img src="/images/logo-bgn.png" alt="" width="54" height="54" />
+            <p>
+              <strong>SI-MBG</strong> — alat bantu menilai kecukupan dan keseimbangan gizi satu porsi menu
+              Makan Bergizi Gratis dengan Fuzzy Sugeno dua tahap.
+            </p>
+          </div>
+          <div>
+            <h2 class="site-footer__title">Menu</h2>
+            <ul>
+              @each(item in nav)
+                <li><a href="{{ urlFor(item.route) }}">{{ item.label }}</a></li>
+              @end
+            </ul>
+          </div>
+          <div>
+            <h2 class="site-footer__title">Pernyataan</h2>
+            <p>
+              Hasil evaluasi adalah alat bantu keputusan, bukan penilaian atau sertifikasi resmi program MBG.
+              Aplikasi ini tidak menyimpan data pribadi.
+              @if(parametersReadonly)
+                Parameter sedang dikunci (mode baca-saja).
+              @end
+            </p>
+          </div>
+        </div>
+        <div class="site-footer__bottom">
+          <p>Copyright © {{ new Date().getFullYear() }} SI-MBG · Proyek akademik</p>
+          <p class="small">Tidak berafiliasi dengan Badan Gizi Nasional; logo dipakai sebagai identitas program.</p>
+        </div>
+      </footer>
+    </div>
+    @include('partials/flash_alerts')
+  </body>
+</html>

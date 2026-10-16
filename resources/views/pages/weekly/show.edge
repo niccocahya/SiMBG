@@ -1,0 +1,73 @@
+@layouts.app({ title: plan.name })
+  @page({ title: plan.name, description: 'Pilih evaluasi dari riwayat untuk setiap hari. Hari Sabtu dan Minggu opsional.' })
+    @slot('actions')
+      <a class="btn btn--secondary btn--sm" href="{{ urlFor('weekly.index') }}">Semua rencana</a>
+      @if(plan.deviceId === deviceId)
+        <form method="POST" action="{{ urlFor('weekly.destroy', { uuid: plan.uuid }, { qs: { _method: 'DELETE' } }) }}" class="inline-form" x-data x-on:submit="if (!confirm('Hapus rencana ini? Evaluasinya tetap ada di riwayat.')) $event.preventDefault()">
+          {{ csrfField() }}
+          <button class="btn btn--danger btn--sm" type="submit">Hapus rencana</button>
+        </form>
+      @end
+    @end
+
+    <div class="vstack-lg">
+      @if(days.length)
+        <div class="grid-3">
+          <div class="panel">
+            <div class="small muted">Rata-rata skor minggu ini</div>
+            <div class="score-ring__value">{{ fmt(average, 1) }}</div>
+            <div class="small muted">{{ days.length }} hari terisi</div>
+          </div>
+          <div class="panel" style="grid-column: span 2">
+            @!scoreBars({ items: days.map((d) => ({ label: dayNames[d.day], score: d.evaluation.score, category: d.evaluation.category })) })
+          </div>
+        </div>
+        @if(weakest && weakest.evaluation.score < 65)
+          <div class="note">
+            @svg('lucide:triangle-alert', { width: 16, height: 16 })
+            <span>
+              Hari terlemah: <strong>{{ dayNames[weakest.day] }}</strong> ({{ weakest.evaluation.displayName }}, skor {{ fmt(weakest.evaluation.score, 1) }}) —
+              {{ weakest.evaluation.result.reasons.filter((r) => r.severity === 'masalah').map((r) => r.text).join(', ') }}.
+            </span>
+          </div>
+        @end
+      @end
+
+      <div class="week">
+        @each(d in [1, 2, 3, 4, 5, 6, 7])
+          @let(daySlot = days.find((x) => x.day === d))
+          <div class="day-card" {{ daySlot ? `data-cat=${daySlot.evaluation.category}` : '' }}>
+            <div class="row row--between">
+              <strong>{{ dayNames[d] }}</strong>
+              @if(daySlot)
+                @!categoryBadge({ category: daySlot.evaluation.category, label: daySlot.evaluation.result.categoryLabel, size: 'sm' })
+              @end
+            </div>
+            @if(daySlot)
+              <a class="il" href="{{ urlFor('evaluations.show', { uuid: daySlot.evaluation.uuid }) }}">{{ daySlot.evaluation.displayName }}</a>
+              <div class="small muted">Skor {{ fmt(daySlot.evaluation.score, 1) }}</div>
+            @else
+              <div class="small muted">Belum diisi</div>
+            @end
+            <form method="POST" action="{{ urlFor('weekly.setDay', { uuid: plan.uuid, day: d }, { qs: { _method: 'PUT' } }) }}" class="vstack-sm">
+              {{ csrfField() }}
+              <select name="evaluationUuid" aria-label="Pilih menu untuk {{ dayNames[d] }}" x-data x-on:change="$el.form.submit()" style="width: 100%">
+                <option value="">{{ daySlot ? '— kosongkan —' : '— pilih dari riwayat —' }}</option>
+                @each(e in recent)
+                  <option value="{{ e.uuid }}" {{ daySlot && daySlot.evaluation.id === e.id ? 'selected' : '' }}>{{ e.displayName }} ({{ fmt(e.score, 0) }})</option>
+                @end
+              </select>
+              <noscript><button class="btn btn--secondary btn--sm" type="submit">Simpan</button></noscript>
+            </form>
+          </div>
+        @end
+      </div>
+      @if(recent.length === 0)
+        <p class="note">
+          @svg('lucide:info', { width: 16, height: 16 })
+          <span>Riwayat masih kosong. <a class="il" href="{{ urlFor('home') }}">Evaluasi menu</a> dulu agar bisa dipilih di sini.</span>
+        </p>
+      @end
+    </div>
+  @end
+@end

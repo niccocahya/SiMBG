@@ -1,0 +1,239 @@
+@let(errors = flashMessages.get('inputErrorsBag', {}))
+@let(defaultGroup = groups.find((g) => g.code === 'sd_7_9') ? 'sd_7_9' : groups[0].code)
+@let(initial = {
+  menuName: old('menuName') ?? (from ? (from.menuName ?? '') : ''),
+  groupCode: old('groupCode') ?? (from ? from.groupCode : defaultGroup),
+  sex: old('sex') ?? (from ? from.sex : 'avg'),
+  mode: old('mode') ?? (from && from.items ? 'bahan' : 'manual'),
+  values: {
+    kalori: old('kalori') ?? (from ? from.kalori : ''),
+    protein: old('protein') ?? (from ? from.protein : ''),
+    lemak: old('lemak') ?? (from ? from.lemak : ''),
+    serat: old('serat') ?? (from ? from.serat : ''),
+  },
+  items: old('items') ?? (from && from.items ? from.items.map((i) => ({ id: i.ingredientId, grams: i.grams })) : []),
+})
+@let(formData = {
+  targets,
+  groups: groups.map((g) => ({
+    code: g.code,
+    label: g.label,
+    sameSex: g.male.kalori === g.female.kalori && g.male.protein === g.female.protein && g.male.lemak === g.female.lemak && g.male.serat === g.female.serat,
+  })),
+  ingredients,
+  samples,
+  initial,
+})
+
+@layouts.app({ title: 'Evaluasi menu' })
+  @page({
+    title: 'Evaluasi kelayakan gizi menu',
+    description: 'Isi kandungan gizi satu porsi menu. Sistem menilai kecukupan energi-protein dan keseimbangan lemak-serat dengan Fuzzy Sugeno dua tahap.',
+  })
+    <script type="application/json" id="form-data">{{{ json(formData) }}}</script>
+
+    <form
+      method="POST"
+      action="{{ urlFor('evaluations.store') }}"
+      x-data="evaluationForm"
+      x-on:submit="submitting = true"
+      class="vstack-lg"
+      novalidate
+    >
+      {{ csrfField() }}
+      <input type="hidden" name="mode" x-bind:value="mode" />
+
+      @if(Object.keys(errors).length)
+        <div class="note note--warn" role="alert">
+          @svg('lucide:triangle-alert', { width: 16, height: 16 })
+          <span>Periksa kembali isian yang ditandai di bawah.</span>
+        </div>
+      @end
+
+      <div class="panel vstack">
+        <div class="grid-3">
+          <div class="field">
+            <label class="field__label" for="menuName">Nama menu (opsional)</label>
+            <input class="field__input" id="menuName" name="menuName" x-model="menuName" maxlength="150" placeholder="Misal: Nasi, ayam goreng, sayur bayam" />
+            @if(errors.menuName)
+              <span class="field__error">{{ errors.menuName.join(' ') }}</span>
+            @end
+          </div>
+          <div class="field">
+            <label class="field__label" for="groupCode">Kelompok sasaran</label>
+            <select id="groupCode" name="groupCode" x-model="groupCode">
+              @each(g in groups)
+                <option value="{{ g.code }}">{{ g.label }}</option>
+              @end
+            </select>
+            @if(errors.groupCode)
+              <span class="field__error">{{ errors.groupCode.join(' ') }}</span>
+            @end
+          </div>
+          <div class="field">
+            <label class="field__label" for="sex">Jenis kelamin (acuan AKG)</label>
+            <select id="sex" name="sex" x-model="sex" x-bind:disabled="currentGroup && currentGroup.sameSex">
+              <option value="avg">Rata-rata laki-laki dan perempuan</option>
+              <option value="L">Laki-laki</option>
+              <option value="P">Perempuan</option>
+            </select>
+            <input type="hidden" name="sex" value="avg" x-bind:disabled="!(currentGroup && currentGroup.sameSex)" />
+            <span class="field__hint" x-show="currentGroup && currentGroup.sameSex">AKG kelompok ini sama untuk laki-laki dan perempuan.</span>
+          </div>
+        </div>
+
+        <div class="note" x-show="target" x-cloak>
+          @svg('lucide:target', { width: 16, height: 16 })
+          <span>
+            Target satu porsi ({{ fmt(parameterSet.config.portionPercent) }}% AKG harian):
+            <strong x-text="fmt(target?.kalori, 0) + ' kkal'"></strong>,
+            protein <strong x-text="fmt(target?.protein, 1) + ' g'"></strong>,
+            lemak <strong x-text="fmt(target?.lemak, 1) + ' g'"></strong>,
+            serat <strong x-text="fmt(target?.serat, 1) + ' g'"></strong>.
+          </span>
+        </div>
+      </div>
+
+      <div class="panel vstack">
+        <div class="row row--between">
+          <div class="tabs" role="tablist" aria-label="Cara mengisi">
+            <button type="button" class="tabs__btn" role="tab" x-bind:aria-selected="mode === 'manual'" x-on:click="mode = 'manual'">Isi manual</button>
+            <button type="button" class="tabs__btn" role="tab" x-bind:aria-selected="mode === 'bahan'" x-on:click="mode = 'bahan'">Hitung dari bahan</button>
+          </div>
+          <div class="row" x-show="mode === 'manual'">
+            <span class="small muted">Isi contoh:</span>
+            <template x-for="(sample, i) in data.samples" :key="i">
+              <button type="button" class="chip" x-on:click="fillSample(sample)" x-text="sample.name"></button>
+            </template>
+          </div>
+        </div>
+
+        {{-- Mode manual --}}
+        <div class="grid-4" x-show="mode === 'manual'">
+          @each(n in nutrients)
+            <div class="field">
+              <label class="field__label" for="{{ n.key }}">{{ n.label }} per porsi</label>
+              <div class="input-unit">
+                <input
+                  class="field__input num"
+                  id="{{ n.key }}"
+                  name="{{ n.key }}"
+                  inputmode="decimal"
+                  autocomplete="off"
+                  x-model="values.{{ n.key }}"
+                  x-bind:disabled="mode !== 'manual'"
+                  aria-invalid="{{ errors[n.key] ? 'true' : 'false' }}"
+                  aria-describedby="{{ errors[n.key] ? n.key + '-error' : '' }}"
+                  placeholder="0"
+                />
+                <span class="input-unit__suffix">{{ n.unit }}</span>
+              </div>
+              <div class="nutrient-field__meta">
+                <span x-text="'Target ' + fmt(target?.{{ n.key }}, 1) + ' {{ n.unit }}'"></span>
+                <span class="pct" x-bind:class="pctClass('{{ n.key }}')" x-text="pctText('{{ n.key }}')"></span>
+              </div>
+              @if(errors[n.key])
+                <span class="field__error" id="{{ n.key }}-error">{{ errors[n.key].join(' ') }}</span>
+              @end
+            </div>
+          @end
+        </div>
+
+        {{-- Mode bahan (F-07) --}}
+        <div class="vstack" x-show="mode === 'bahan'" x-cloak>
+          <div class="grid-2">
+            <div class="field">
+              <label class="field__label" for="search">Cari bahan (Tabel Komposisi Pangan Indonesia)</label>
+              <input class="field__input" id="search" x-model="search" placeholder="Ketik: nasi, telur, bayam, minyak…" autocomplete="off" />
+              <div class="picker" x-show="search.trim().length > 0">
+                <template x-for="ing in filtered" :key="ing.id">
+                  <button type="button" class="picker__item" x-on:click="addItem(ing)">
+                    <span x-text="ing.name"></span>
+                    <span class="muted small" x-text="fmt(ing.kalori, 0) + ' kkal/100 g' + (ing.source === 'kustom' ? ' · kustom' : '')"></span>
+                  </button>
+                </template>
+                <div class="picker__item muted" x-show="filtered.length === 0">Tidak ada bahan yang cocok.</div>
+              </div>
+              <span class="field__hint">
+                Nilai per 100 gram berat dapat dimakan. Jangan lupa memasukkan minyak goreng bila lauk digoreng.
+                <a class="il" href="{{ urlFor('ingredients.index') }}">Tambah bahan sendiri</a>
+              </span>
+            </div>
+            <div class="note" x-show="missingFiber.length" x-cloak>
+              @svg('lucide:triangle-alert', { width: 16, height: 16 })
+              <span>Data serat tidak tersedia untuk <strong x-text="missingFiber.join(', ')"></strong>, dihitung 0. Serat sebenarnya mungkin lebih tinggi.</span>
+            </div>
+          </div>
+
+          <div class="table-wrap">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>Bahan</th>
+                  <th class="num">Berat (g)</th>
+                  <th class="num">Kalori</th>
+                  <th class="num">Protein</th>
+                  <th class="num">Lemak</th>
+                  <th class="num">Serat</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                <template x-for="(item, i) in items" :key="i">
+                  <tr>
+                    <td>
+                      <span x-text="ingredient(item.id)?.name ?? 'Bahan tidak ditemukan'"></span>
+                      <input type="hidden" x-bind:name="'items[' + i + '][ingredientId]'" x-bind:value="item.id" x-bind:disabled="mode !== 'bahan'" />
+                    </td>
+                    <td class="num">
+                      <input class="field__input field__input--sm num" style="width: 80px" inputmode="decimal" x-model="item.grams" x-bind:name="'items[' + i + '][grams]'" x-bind:disabled="mode !== 'bahan'" />
+                    </td>
+                    <td class="num" x-text="fmt(itemValue(item, 'kalori'), 1)"></td>
+                    <td class="num" x-text="fmt(itemValue(item, 'protein'), 1)"></td>
+                    <td class="num" x-text="fmt(itemValue(item, 'lemak'), 1)"></td>
+                    <td class="num" x-text="ingredient(item.id)?.serat === null ? '–' : fmt(itemValue(item, 'serat'), 1)"></td>
+                    <td class="right">
+                      <button type="button" class="btn btn--ghost btn--sm" x-on:click="items.splice(i, 1)" aria-label="Hapus bahan">
+                      @svg('lucide:x', { width: 14, height: 14 })
+                      </button>
+                    </td>
+                  </tr>
+                </template>
+                <tr x-show="items.length === 0">
+                  <td colspan="7" class="muted">Belum ada bahan. Cari lalu klik bahan untuk menambahkannya.</td>
+                </tr>
+              </tbody>
+              <tfoot x-show="items.length">
+                <tr>
+                  <th>Total per porsi</th>
+                  <th></th>
+                  @each(n in nutrients)
+                    <th class="num">
+                      <span x-text="fmt(totals.{{ n.key }}, 1)"></span>
+                      <span class="pct" x-bind:class="pctClass('{{ n.key }}')" x-text="' · ' + pctText('{{ n.key }}')"></span>
+                    </th>
+                  @end
+                  <th></th>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+          @each(n in nutrients)
+            <input type="hidden" name="{{ n.key }}" x-bind:value="totals.{{ n.key }}" x-bind:disabled="mode !== 'bahan'" />
+          @end
+          @if(errors.items || errors.kalori)
+            <span class="field__error">{{ (errors.items ?? errors.kalori).join(' ') }}</span>
+          @end
+        </div>
+      </div>
+
+      <div class="row row--between">
+        @!disclaimer()
+        <button type="submit" class="btn btn--primary" x-bind:disabled="submitting || (mode === 'bahan' && items.length === 0)">
+          @svg('lucide:calculator', { width: 16, height: 16 })
+          <span x-text="submitting ? 'Menghitung…' : 'Hitung kelayakan'">Hitung kelayakan</span>
+        </button>
+      </div>
+    </form>
+  @end
+@end

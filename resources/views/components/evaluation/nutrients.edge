@@ -1,0 +1,61 @@
+{{-- Tabel kandungan gizi: nilai, target, persen, himpunan dominan --}}
+@let(e = $props.get('evaluation'))
+@let(r = e.result)
+@let(traces = { kalori: r.stage1.inputs[0], protein: r.stage1.inputs[1], lemak: r.stage2.inputs[0], serat: r.stage2.inputs[2] })
+
+<div class="table-wrap">
+  <table class="table">
+    <thead>
+      <tr>
+        <th>Kandungan</th>
+        <th class="num">Per porsi</th>
+        <th class="num">Target porsi</th>
+        <th class="num">% target</th>
+        <th>Masuk himpunan</th>
+      </tr>
+    </thead>
+    <tbody>
+      @each(n in nutrients)
+        <tr>
+          <td>{{ n.label }}</td>
+          <td class="num">{{ fmt(e.values[n.key], 1) }} {{ n.unit }}</td>
+          <td class="num">{{ fmt(e.target[n.key], 1) }} {{ n.unit }}</td>
+          <td class="num"><strong>{{ fmt(r.percent[n.key], 1) }}%</strong></td>
+          <td class="small">
+            {{ traces[n.key].memberships.filter((m) => m.mu > 0).map((m) => `${m.label} ${fmt(m.mu, 2)}`).join(', ') }}
+            @if(traces[n.key].clipped)
+              <span class="chip chip--warn">dipotong ke {{ fmt(traces[n.key].value) }}%</span>
+            @end
+          </td>
+        </tr>
+      @end
+    </tbody>
+  </table>
+</div>
+
+@if(e.items && e.items.length)
+  <details class="step">
+    <summary>Rincian bahan ({{ e.items.length }})</summary>
+    <div class="step__body">
+      <div class="table-wrap">
+        <table class="table">
+          <thead>
+            <tr><th>Bahan</th><th class="num">Berat</th><th class="num">Kalori</th><th class="num">Protein</th><th class="num">Lemak</th><th class="num">Serat</th></tr>
+          </thead>
+          <tbody>
+            @each(item in e.items)
+              <tr>
+                <td>{{ item.name }}</td>
+                <td class="num">{{ fmt(item.grams) }} g</td>
+                <td class="num">{{ fmt(item.kalori, 1) }}</td>
+                <td class="num">{{ fmt(item.protein, 1) }}</td>
+                <td class="num">{{ fmt(item.lemak, 1) }}</td>
+                <td class="num">{{ item.serat === null ? 'tidak ada data' : fmt(item.serat, 1) }}</td>
+              </tr>
+            @end
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </details>
+@end

@@ -1,0 +1,87 @@
+{{--
+  Banner kampanye program pemerintah di ruang kosong kiri-kanan layar lebar.
+  Pesan sengaja dibuat umum (tanpa nomor, tautan luar, atau angka) agar
+  tidak memuat informasi resmi yang tidak bisa dipertanggungjawabkan.
+  Tombol mengarah ke halaman di aplikasi ini sendiri.
+--}}
+@let(left = [
+  {
+    theme: 'mbg',
+    icon: 'lucide:utensils',
+    eyebrow: 'Program Prioritas',
+    title: 'Makan Bergizi Gratis',
+    text: 'Gizi seimbang setiap hari untuk generasi sehat menuju Indonesia Emas 2045.',
+    cta: 'Pelajari metode',
+    route: 'about',
+    logo: true,
+  },
+  {
+    theme: 'piring',
+    icon: 'lucide:salad',
+    eyebrow: 'Pedoman Gizi Seimbang',
+    title: 'Isi Piringku',
+    text: 'Setengah piring sayur dan buah, setengahnya lagi makanan pokok dan lauk pauk.',
+    cta: 'Cek menu',
+    route: 'home',
+    plate: true,
+  },
+])
+@let(right = [
+  {
+    theme: 'germas',
+    icon: 'lucide:heart-pulse',
+    eyebrow: 'Gerakan Masyarakat Hidup Sehat',
+    title: 'GERMAS',
+    text: 'Makan sayur dan buah, aktif bergerak, dan periksa kesehatan secara rutin.',
+    cta: 'Susun menu',
+    route: 'weekly.index',
+  },
+  {
+    theme: 'stunting',
+    icon: 'lucide:baby',
+    eyebrow: 'Bersama Cegah',
+    title: 'Stunting',
+    text: 'Protein hewani dan gizi cukup sejak dini untuk tumbuh kembang anak yang optimal.',
+    cta: 'Hitung gizi',
+    route: 'home',
+  },
+])
+
+{{--
+  Banner bergulir: kiri naik, kanan turun. Isi digandakan tiga kali dan
+  track digeser sejauh satu set (1/3), jadi putarannya menyambung tanpa
+  lompatan. Salinan ke-2 dan ke-3 disembunyikan dari pembaca layar.
+--}}
+@each(side in [{ name: 'left', ads: left }, { name: 'right', ads: right }])
+  <aside class="side-ads side-ads--{{ side.name }}" aria-label="Informasi program pemerintah">
+    <div class="side-ads__track">
+    @each(copy in [1, 2, 3])
+    @each(ad in side.ads)
+      <div class="side-ad side-ad--{{ ad.theme }}" {{ copy > 1 ? 'aria-hidden=true' : '' }}>
+        <span class="side-ad__label">Info Program</span>
+        <div class="side-ad__body">
+          <span class="side-ad__icon">
+            @svg(ad.icon, { width: 26, height: 26 })
+          </span>
+          <span class="side-ad__eyebrow">{{ ad.eyebrow }}</span>
+          <strong class="side-ad__title">{{ ad.title }}</strong>
+          @if(ad.plate)
+            <span class="side-ad__plate" aria-hidden="true">
+              <span class="q q--sayur"></span>
+              <span class="q q--buah"></span>
+              <span class="q q--pokok"></span>
+              <span class="q q--lauk"></span>
+            </span>
+          @end
+          <span class="side-ad__text">{{ ad.text }}</span>
+          <a class="side-ad__cta" href="{{ urlFor(ad.route) }}" {{ copy > 1 ? 'tabindex=-1' : '' }}>{{ ad.cta }} »</a>
+          @if(ad.logo)
+            <img class="side-ad__logo" src="/images/logo-bgn.png" alt="" width="40" height="40" />
+          @end
+        </div>
+      </div>
+    @end
+    @end
+    </div>
+  </aside>
+@end

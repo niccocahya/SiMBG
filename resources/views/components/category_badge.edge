@@ -1,0 +1,6 @@
+@let(catKey = $props.get('category'))
+@let(catLabel = $props.get('label'))
+<span class="badge {{ $props.get('size') === 'sm' ? 'badge--sm' : '' }}" data-cat="{{ catKey }}">
+  @svg(categoryIcon(catKey), { width: $props.get('size') === 'sm' ? 12 : 14, height: $props.get('size') === 'sm' ? 12 : 14 })
+  {{ catLabel }}
+</span>
