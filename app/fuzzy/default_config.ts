@@ -33,7 +33,11 @@ function buildStage1(): Rule[] {
   let i = 1
   for (const kalori of ['kurang', 'cukup', 'berlebih']) {
     for (const protein of ['kurang', 'cukup', 'tinggi']) {
-      rules.push({ id: `R${i++}`, when: { kalori, protein }, output: STAGE1_TABLE[kalori][protein] })
+      rules.push({
+        id: `R${i++}`,
+        when: { kalori, protein },
+        output: STAGE1_TABLE[kalori][protein],
+      })
     }
   }
   return rules

@@ -8,7 +8,10 @@ import type { MembershipBranch, Trapezoid, Variable, VariableTrace } from './typ
  * pernah terjadi: cabang naik hanya tercapai jika a < x < b, cabang turun
  * hanya jika c < x < d.
  */
-export function trapezoidDetail(x: number, [a, b, c, d]: Trapezoid): {
+export function trapezoidDetail(
+  x: number,
+  [a, b, c, d]: Trapezoid
+): {
   mu: number
   branch: MembershipBranch
 } {

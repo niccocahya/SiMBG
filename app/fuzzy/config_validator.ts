@@ -8,8 +8,7 @@ export interface ConfigIssue {
 }
 
 export type ConfigCheck =
-  | { ok: true; config: FuzzyConfig }
-  | { ok: false; issues: ConfigIssue[]; draft: FuzzyConfig }
+  { ok: true; config: FuzzyConfig } | { ok: false; issues: ConfigIssue[]; draft: FuzzyConfig }
 
 const VARIABLE_KEYS: VariableKey[] = ['kalori', 'protein', 'kecukupan', 'lemak', 'serat']
 
@@ -66,9 +65,13 @@ export function checkConfig(input: unknown): ConfigCheck {
     const code = String(g?.code ?? '').trim()
     const label = String(g?.label ?? '').trim()
     if (!/^[a-z0-9_]{2,40}$/.test(code)) {
-      issues.push({ path: `targetGroups.${gi}.code`, message: 'Kode hanya huruf kecil, angka, dan garis bawah.' })
+      issues.push({
+        path: `targetGroups.${gi}.code`,
+        message: 'Kode hanya huruf kecil, angka, dan garis bawah.',
+      })
     }
-    if (!label) issues.push({ path: `targetGroups.${gi}.label`, message: 'Nama kelompok wajib diisi.' })
+    if (!label)
+      issues.push({ path: `targetGroups.${gi}.label`, message: 'Nama kelompok wajib diisi.' })
     const akg = (sex: 'male' | 'female') => {
       const out = { ...fallback[sex] }
       for (const n of ['kalori', 'protein', 'lemak', 'serat'] as const) {
@@ -102,16 +105,28 @@ export function checkConfig(input: unknown): ConfigCheck {
       const [a, b, c, d] = params
       const path = `variables.${key}.${set.key}`
       if (!(a <= b && b <= c && c <= d)) {
-        issues.push({ path, message: `${variable.label} ${set.label}: urutan harus a ≤ b ≤ c ≤ d.` })
+        issues.push({
+          path,
+          message: `${variable.label} ${set.label}: urutan harus a ≤ b ≤ c ≤ d.`,
+        })
       }
       if (a < min || d > max) {
-        issues.push({ path, message: `${variable.label} ${set.label}: titik harus di rentang ${min}–${max}.` })
+        issues.push({
+          path,
+          message: `${variable.label} ${set.label}: titik harus di rentang ${min}–${max}.`,
+        })
       }
       if (a === b && a !== min) {
-        issues.push({ path, message: `${variable.label} ${set.label}: a = b hanya boleh di batas kiri domain (${min}).` })
+        issues.push({
+          path,
+          message: `${variable.label} ${set.label}: a = b hanya boleh di batas kiri domain (${min}).`,
+        })
       }
       if (c === d && d !== max) {
-        issues.push({ path, message: `${variable.label} ${set.label}: c = d hanya boleh di batas kanan domain (${max}).` })
+        issues.push({
+          path,
+          message: `${variable.label} ${set.label}: c = d hanya boleh di batas kanan domain (${max}).`,
+        })
       }
       const note = typeof rawSet?.note === 'string' ? rawSet.note.slice(0, 500) : undefined
       return { ...set, params, note }
@@ -145,7 +160,8 @@ export function checkConfig(input: unknown): ConfigCheck {
       const rawRule = asArray(raw[stage])?.find((r: any) => r?.id === rule.id)
       const path = `${stage}.${rule.id}`
       const output = take(rawRule?.output, path, rule.output)
-      if (output < 0 || output > 100) issues.push({ path, message: `Aturan ${rule.id}: konstanta harus 0–100.` })
+      if (output < 0 || output > 100)
+        issues.push({ path, message: `Aturan ${rule.id}: konstanta harus 0–100.` })
       const note = typeof rawRule?.note === 'string' ? rawRule.note.slice(0, 500) : undefined
       return { ...rule, output, note }
     })
@@ -172,7 +188,9 @@ export function checkConfig(input: unknown): ConfigCheck {
       ? raw.sources.split(String.fromCharCode(10)).map((s: string) => s.trim())
       : asArray(raw.sources)
   const sources = rawSources
-    ? rawSources.filter((s: unknown) => typeof s === 'string' && s.trim()).map((s: string) => s.slice(0, 300))
+    ? rawSources
+        .filter((s: unknown) => typeof s === 'string' && s.trim())
+        .map((s: string) => s.slice(0, 300))
     : base.sources
 
   const config: FuzzyConfig = {
